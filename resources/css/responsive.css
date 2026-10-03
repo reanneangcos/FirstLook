@@ -1,0 +1,346 @@
+@media (min-width: 1550px) {
+    .main-content {
+        padding-top: 48px;
+    }
+}
+@media (max-width: 1180px) {
+    .sidebar {
+        width: 218px;
+        padding-left: 17px;
+        padding-right: 17px;
+    }
+    .workspace-main {
+        margin-left: 218px;
+        width: calc(100% - 218px);
+    }
+    .main-content {
+        padding: 28px;
+    }
+    .topbar,
+    .footer {
+        padding-left: 28px;
+        padding-right: 28px;
+    }
+    .page-heading {
+        flex-wrap: wrap;
+    }
+    .intake-grid,
+    .detail-grid {
+        grid-template-columns: minmax(0, 1fr) 245px;
+        gap: 18px;
+    }
+    .study-grid {
+        grid-template-columns: 1fr;
+    }
+    .stats-grid {
+        gap: 10px;
+    }
+    .stat-card {
+        padding: 15px;
+    }
+    .stat-top {
+        font-size: 11px;
+    }
+    .banner-tag {
+        display: none;
+    }
+    .method-state {
+        margin-left: auto;
+    }
+}
+@media (max-width: 900px) {
+    .sidebar {
+        width: 190px;
+    }
+    .brand {
+        font-size: 20px;
+    }
+    .brand small {
+        font-size: 6px;
+    }
+    .nav-item {
+        padding: 11px 10px;
+        font-size: 13px;
+        gap: 8px;
+    }
+    .workspace-main {
+        margin-left: 190px;
+        width: calc(100% - 190px);
+    }
+    .intake-grid,
+    .detail-grid {
+        grid-template-columns: 1fr;
+    }
+    .intake-aside {
+        position: static;
+    }
+    .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .login-story {
+        padding: 35px;
+    }
+    .login-main {
+        padding: 35px;
+    }
+    .research-banner {
+        padding: 23px;
+    }
+    .research-banner h2 {
+        font-size: 18px;
+    }
+}
+@media (max-width: 680px) {
+    .app-shell {
+        display: block;
+    }
+    .sidebar {
+        position: static;
+        width: 100%;
+        padding: 17px 18px 9px;
+        border-right: 0;
+        border-bottom: 1px solid #e1e8d7;
+    }
+    .sidebar .brand {
+        font-size: 21px;
+    }
+    .brand small {
+        font-size: 7px;
+    }
+    .sidebar nav {
+        display: flex;
+        gap: 4px;
+        margin-top: 17px;
+    }
+    .nav-item {
+        flex: 1;
+        justify-content: center;
+        font-size: 12px;
+        padding: 10px 6px;
+        margin: 0;
+        gap: 6px;
+    }
+    .nav-item svg {
+        width: 15px;
+    }
+    .nav-dot {
+        display: none;
+    }
+    .workspace-label,
+    .sidebar-study {
+        display: none;
+    }
+    .sidebar-user {
+        position: absolute;
+        top: 15px;
+        right: 19px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+    }
+    .sidebar-user > div,
+    .sidebar-user .avatar {
+        display: none;
+    }
+    .sidebar-user .icon-button {
+        padding: 10px;
+    }
+    .workspace-main {
+        margin: 0;
+        width: 100%;
+    }
+    .topbar {
+        height: 49px;
+        padding: 0 20px;
+    }
+    .breadcrumb {
+        font-size: 11px;
+    }
+    .breadcrumb span {
+        margin: 0 8px;
+    }
+    .environment {
+        font-size: 10px;
+    }
+    .main-content {
+        padding: 26px 18px;
+    }
+    .page-heading {
+        gap: 17px;
+        margin-bottom: 23px;
+    }
+    h1 {
+        font-size: 29px;
+        letter-spacing: -0.9px;
+    }
+    .page-description {
+        font-size: 13px;
+        max-width: 320px;
+    }
+    .eyebrow {
+        font-size: 10px;
+    }
+    .research-banner {
+        padding: 19px;
+        gap: 16px;
+    }
+    .banner-icon {
+        width: 43px;
+        height: 48px;
+        border-radius: 10px;
+    }
+    .banner-icon svg {
+        width: 22px;
+    }
+    .research-banner h2 {
+        font-size: 16px;
+    }
+    .research-banner p {
+        font-size: 12px;
+    }
+    .stat-card {
+        padding: 15px;
+    }
+    .stats-grid {
+        margin-bottom: 27px;
+    }
+    .stat-card > strong {
+        font-size: 30px;
+    }
+    .stat-card > p {
+        font-size: 11px;
+    }
+    .section-heading h2 {
+        font-size: 15px;
+    }
+    .section-heading p {
+        font-size: 12px;
+    }
+    .study-card,
+    .boundaries-card {
+        padding: 19px;
+    }
+    .method-row {
+        gap: 10px;
+    }
+    .method-row p {
+        max-width: 165px;
+    }
+    .method-row > .small-tag {
+        font-size: 7px;
+        padding: 4px;
+    }
+    .method-state {
+        font-size: 10px;
+    }
+    .method-letter {
+        width: 29px;
+        height: 31px;
+    }
+    .footer {
+        padding: 17px 18px;
+        font-size: 10px;
+    }
+    .footer > span {
+        gap: 5px;
+    }
+    .form-section {
+        padding: 21px 18px;
+    }
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+    .form-actions {
+        justify-content: space-between;
+    }
+    .processing-help {
+        text-align: left;
+    }
+    .search-toolbar {
+        flex-wrap: wrap;
+        padding: 15px;
+        gap: 9px;
+    }
+    .search-field {
+        flex-basis: 100%;
+    }
+    .search-toolbar select {
+        flex: 1;
+    }
+    .pagination {
+        flex-wrap: wrap;
+        padding: 15px;
+    }
+    .fact-grid {
+        grid-template-columns: 1fr;
+    }
+    .details-section,
+    .conversation {
+        padding: 20px 17px;
+    }
+    .chat-entry {
+        gap: 9px;
+    }
+    .chat-bubble {
+        padding: 13px;
+    }
+    .chat-label > span {
+        display: block;
+        margin: 2px 0 0;
+    }
+    .login-page {
+        display: block;
+    }
+    .login-story {
+        padding: 24px;
+        min-height: 270px;
+        gap: 30px;
+    }
+    .login-story h1 {
+        font-size: 31px;
+    }
+    .login-story > div > p,
+    .login-methods,
+    .login-story small,
+    .login-caption {
+        display: none;
+    }
+    .login-story .eyebrow {
+        margin-bottom: 14px;
+    }
+    .login-main {
+        padding: 34px 25px;
+    }
+    .login-card h2 {
+        font-size: 25px;
+    }
+    .login-card .section-icon {
+        display: none;
+    }
+    .login-disclaimer {
+        margin-top: 30px;
+    }
+    .skip-link {
+        left: 20px;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@media (max-width: 680px) {
+    .field input,
+    .field textarea,
+    .field select {
+        font-size: 16px;
+    }
+    .button,
+    .nav-item {
+        min-height: 44px;
+    }
+}

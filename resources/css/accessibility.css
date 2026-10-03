@@ -1,0 +1,35 @@
+/* Keep secondary copy readable against the quiet palette. */
+.page-description,
+.section-heading p,
+.stat-card > p,
+.empty-state p,
+.notice p,
+.field-hint,
+.form-section-heading p,
+.processing-help,
+.guidance-card > p,
+.steps p,
+.inline-note,
+.aside-footnote,
+.record-note,
+.section-description,
+.muted-copy,
+.login-card > p:not(.eyebrow),
+.login-help,
+.login-disclaimer,
+.boundary-footer,
+.boundaries-card p,
+.method-row p,
+.footer {
+    color: #68745f;
+}
+.fact-grid dt,
+.fact-grid .unknown,
+.date-cell,
+.session-meta,
+.chat-bubble small,
+.chat-label > span,
+.extracted-list small,
+.attempt-meta {
+    color: #717c65;
+}

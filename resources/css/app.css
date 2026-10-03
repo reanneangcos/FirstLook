@@ -1,0 +1,12 @@
+@import 'tailwindcss';
+@import './base.css';
+@import './layout.css';
+@import './dashboard.css';
+@import './forms.css';
+@import './history.css';
+@import './details.css';
+@import './auth.css';
+@import './accessibility.css';
+@import './responsive.css';
+@source "../js";
+@source "../views";

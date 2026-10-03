@@ -1,0 +1,69 @@
+@theme {
+    --font-sans: 'Inter', 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+:root {
+    font-family: var(--font-sans);
+    color: #283e37;
+    background: #f7f8f5;
+    font-synthesis: none;
+}
+* {
+    box-sizing: border-box;
+}
+body {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.55;
+}
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+button,
+a,
+summary {
+    -webkit-tap-highlight-color: transparent;
+}
+a {
+    color: inherit;
+    text-decoration: none;
+}
+button {
+    cursor: pointer;
+}
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+button,
+input,
+select,
+textarea,
+a,
+summary {
+    outline-color: #3f7867;
+    outline-offset: 4px;
+}
+h1,
+h2,
+h3,
+p {
+    margin: 0;
+}
+h1 {
+    font-size: clamp(27px, 2.6vw, 36px);
+    font-weight: 550;
+    line-height: 1.2;
+    letter-spacing: -1.25px;
+}
+h2 {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+}
+h3 {
+    font-size: 14px;
+    font-weight: 600;
+}

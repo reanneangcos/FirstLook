@@ -1,0 +1,240 @@
+.app-shell {
+    display: flex;
+    min-height: 100vh;
+}
+.sidebar {
+    width: 245px;
+    flex-shrink: 0;
+    position: fixed;
+    inset: 0 auto 0 0;
+    display: flex;
+    flex-direction: column;
+    padding: 34px 21px 20px;
+    background: #fbfcf9;
+    border-right: 1px solid #e3e8df;
+    z-index: 20;
+}
+.brand {
+    display: inline-flex;
+    gap: 11px;
+    align-items: center;
+    font-size: 23px;
+    font-weight: 650;
+    letter-spacing: -0.8px;
+    width: fit-content;
+}
+.brand-mark {
+    display: grid;
+    place-items: center;
+    background: #244f42;
+    color: #edf2df;
+    width: 39px;
+    height: 42px;
+    border-radius: 11px;
+}
+.brand small {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.65px;
+    color: #7b897c;
+    margin-top: 0;
+}
+.workspace-label {
+    margin: 49px 13px 15px;
+    color: #829080;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.6px;
+}
+.nav-item {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 7px;
+    color: #6c786f;
+    font-size: 14px;
+    font-weight: 500;
+    margin: 5px 0;
+}
+.nav-item:hover {
+    background: #edf1e9;
+}
+.nav-item.active {
+    background: #e8eee2;
+    color: #244f42;
+}
+.nav-dot {
+    margin-left: auto;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #477158;
+}
+.sidebar-study {
+    margin-top: auto;
+    padding: 20px 15px;
+    border-radius: 9px;
+    background: #f0f3e9;
+    color: #576b53;
+}
+.sidebar-study h3 {
+    margin: 12px 0 6px;
+    font-size: 14px;
+}
+.sidebar-study p {
+    font-size: 13px;
+    line-height: 1.8;
+    margin-bottom: 15px;
+}
+.small-tag {
+    display: inline-flex;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border: 1px solid #dfe5d8;
+    background: #f5f7f0;
+    border-radius: 5px;
+    color: #62705d;
+    width: fit-content;
+}
+.sidebar-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 23px;
+    margin-top: 23px;
+    border-top: 1px solid #e3e7de;
+}
+.avatar {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 31px;
+    height: 31px;
+    border-radius: 50%;
+    background: #dfe6d6;
+    color: #627458;
+    font-weight: 600;
+    font-size: 13px;
+}
+.sidebar-user strong {
+    display: block;
+    font-size: 13px;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sidebar-user small {
+    color: #85907e;
+    font-size: 12px;
+}
+.icon-button {
+    margin-left: auto;
+    background: transparent;
+    border: 0;
+    padding: 4px;
+    color: #82907c;
+}
+.workspace-main {
+    width: calc(100% - 245px);
+    margin-left: 245px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.topbar {
+    height: 73px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 43px;
+    border-bottom: 1px solid #e5e8e1;
+    background: #fcfdfb;
+}
+.breadcrumb {
+    color: #849080;
+    font-size: 13px;
+}
+.breadcrumb span {
+    margin: 0 14px;
+    color: #b0b8a9;
+}
+.breadcrumb strong {
+    color: #5a6b53;
+    font-weight: 500;
+}
+.environment {
+    font-size: 12px;
+    color: #6b7962;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+.environment > span {
+    width: 5px;
+    height: 5px;
+    background: #859971;
+    border-radius: 50%;
+}
+.main-content {
+    padding: 38px 43px 32px;
+    max-width: 1520px;
+    width: 100%;
+    margin: 0 auto;
+    flex: 1;
+}
+.page-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 27px;
+}
+.eyebrow {
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 1.8px;
+    color: #7c8b70;
+    margin-bottom: 11px;
+}
+.page-description {
+    font-size: 14px;
+    color: #7a8674;
+    margin-top: 10px;
+}
+.button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 15px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 550;
+    white-space: nowrap;
+    min-height: 42px;
+    border: 1px solid transparent;
+    transition: background 0.15s;
+}
+.primary {
+    background: #264f43;
+    color: #fff;
+    box-shadow: 0 3px 6px #1f493014;
+}
+.primary:hover {
+    background: #326653;
+}
+.secondary {
+    background: #fff;
+    color: #5b6d54;
+    border-color: #dee5d7;
+}
+.secondary:hover {
+    background: #f2f5ec;
+}
+.compact {
+    padding: 7px 11px;
+    min-height: 34px;
+}

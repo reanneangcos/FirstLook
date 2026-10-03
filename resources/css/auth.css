@@ -1,0 +1,135 @@
+.login-page {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    min-height: 100vh;
+}
+.login-story {
+    background: #224f42;
+    color: #e7ecda;
+    padding: 48px 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+.login-story .brand-mark {
+    background: #416957;
+    color: #e9efd4;
+}
+.login-story .brand small {
+    color: #94b08e;
+}
+.login-story h1 {
+    font-size: clamp(35px, 3.5vw, 51px);
+    line-height: 1.25;
+    font-weight: 450;
+    letter-spacing: -1.7px;
+}
+.login-story h1 em {
+    font-style: normal;
+    color: #b5cda1;
+}
+.login-story .eyebrow {
+    color: #90ab7d;
+    margin-bottom: 24px;
+}
+.login-story > div > p {
+    max-width: 360px;
+    color: #a5bea0;
+    font-size: 14px;
+    margin-top: 25px;
+    line-height: 1.9;
+}
+.login-methods {
+    display: flex;
+    align-items: center;
+    margin: 39px 0 14px;
+    width: 185px;
+}
+.login-methods span {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 46px;
+    border: 1px solid #74936b;
+    border-radius: 9px;
+    font-size: 18px;
+    color: #c3d8ad;
+}
+.login-methods div {
+    flex: 1;
+    border-top: 1px dashed #7b966f;
+}
+.login-story small {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: #96ae85;
+}
+.login-caption {
+    display: flex;
+    gap: 9px;
+    align-items: center;
+    font-size: 12px;
+    color: #93ae86;
+}
+.login-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 55px;
+    background: #fcfdf8;
+}
+.login-card {
+    max-width: 355px;
+    width: 100%;
+}
+.login-card .section-icon {
+    margin-bottom: 25px;
+    width: 47px;
+    height: 47px;
+}
+.login-card h2 {
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -0.8px;
+}
+.login-card > p:not(.eyebrow) {
+    color: #8b9c7e;
+    font-size: 14px;
+    margin-top: 9px;
+}
+.login-card form {
+    margin-top: 32px;
+}
+.login-card form .button {
+    width: 100%;
+    margin-top: 10px;
+}
+.login-help {
+    border-top: 1px solid #e2e9d7;
+    padding-top: 20px;
+    line-height: 1.8;
+    font-size: 12px !important;
+    margin-top: 26px !important;
+}
+.login-help code {
+    font-size: 12px;
+}
+.login-disclaimer {
+    margin-top: 70px;
+    font-size: 12px;
+    color: #a4b094;
+    text-align: center;
+    line-height: 1.8;
+}
+.skip-link {
+    position: absolute;
+    top: -60px;
+    left: 260px;
+    background: white;
+    z-index: 100;
+    padding: 10px;
+}
+.skip-link:focus {
+    top: 10px;
+}

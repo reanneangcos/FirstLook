@@ -1,0 +1,29 @@
+name: triageflow-thesis2
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - .:/var/www/html
+      - php_dependencies:/var/www/html/vendor
+      - database_data:/var/www/html/database/data
+    environment:
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/www/html/database/data/database.sqlite
+    init: true
+    stop_grace_period: 110s
+  node:
+    image: node:24.14.1-bookworm-slim
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - node_dependencies:/var/www/html/node_modules
+    ports:
+      - "127.0.0.1:5173:5173"
+    command: npm run dev
+    init: true
+volumes:
+  database_data:
+  php_dependencies:
+  node_dependencies:
