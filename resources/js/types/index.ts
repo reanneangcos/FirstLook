@@ -13,6 +13,7 @@ export type Output = {
     explanation: string;
 };
 export type Session = {
+    patient_visit?: { id: number; stub_number: string } | null;
     id: string;
     dataset_case_id: string | null;
     variant_id: string | null;
@@ -63,3 +64,26 @@ export type Pagination = {
     prev_page_url: string | null;
     next_page_url: string | null;
 };
+
+export type ChatMessage = {
+    id: number;
+    role: 'patient' | 'assistant';
+    source: 'patient' | 'guide' | 'model' | 'system';
+    content: string;
+    created_at: string;
+};
+export type PatientChatVisit = {
+    stub_number: string;
+    language: string;
+    status: 'collecting' | 'ready' | 'screening' | 'completed';
+    question_index: number;
+    messages: ChatMessage[];
+};
+export type PatientVisit = Omit<PatientChatVisit, 'messages'> & {
+    id: number;
+    created_at: string;
+    answers?: Patient;
+    messages?: ChatMessage[];
+    screening: Session | null;
+};
+export type Paginated<T> = Omit<Pagination, 'data'> & { data: T[] };

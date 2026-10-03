@@ -93,7 +93,7 @@ export default function Dashboard({ counts, sessions }: { counts: Counts; sessio
                     <h2>Recent screenings</h2>
                     <p>Stored sessions, including any explicitly labeled test fixtures.</p>
                 </div>
-                <Link className="text-link" href="/screenings">
+                <Link className="text-link" href="/admin/screenings">
                     View history <ArrowUpRight size={16} />
                 </Link>
             </div>

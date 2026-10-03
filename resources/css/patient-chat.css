@@ -1,0 +1,384 @@
+.patient-shell {
+    min-height: 100vh;
+    background: #f6f8f4;
+}
+.patient-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 24px 5%;
+    border-bottom: 1px solid #e0e7dc;
+    background: #fff;
+}
+.staff-entry {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #496151;
+    font-size: 13px;
+    padding: 12px 0;
+}
+.patient-main {
+    max-width: 820px;
+    padding: 48px 24px 24px;
+    margin: auto;
+}
+.chat-welcome {
+    text-align: center;
+    max-width: 620px;
+    margin: auto;
+}
+.welcome-icon {
+    display: grid;
+    place-items: center;
+    width: 66px;
+    height: 66px;
+    background: #e7eee1;
+    color: #315b48;
+    border-radius: 21px;
+    margin: 0 auto 24px;
+}
+.chat-welcome h1 {
+    font-size: clamp(32px, 4vw, 45px);
+    line-height: 1.15;
+}
+.chat-welcome em {
+    font-style: normal;
+    color: #637e56;
+}
+.welcome-copy {
+    max-width: 500px;
+    margin: 18px auto;
+    font-size: 15px;
+    color: #627160;
+    line-height: 1.8;
+}
+.welcome-steps {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin: 27px 0;
+    font-size: 12px;
+    color: #4d6554;
+}
+.welcome-steps span {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+.chat-start {
+    text-align: left;
+    padding: 28px;
+    max-width: 520px;
+    margin: auto;
+}
+.chat-start > label:first-child {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 9px;
+}
+.chat-start select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #d8e1d4;
+    border-radius: 7px;
+    background: #fcfdf9;
+}
+.chat-start > small {
+    display: block;
+    color: #687662;
+    margin: 9px 0 23px;
+    font-size: 12px;
+}
+.chat-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 16px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    cursor: pointer;
+}
+.chat-check input {
+    margin-top: 4px;
+    flex-shrink: 0;
+    width: 17px;
+    height: 17px;
+    accent-color: #315b48;
+}
+.chat-start > .button {
+    width: 100%;
+    margin-top: 10px;
+    min-height: 47px;
+}
+.chat-error {
+    color: #9b4035;
+    font-size: 13px;
+    margin: 9px 0;
+}
+.patient-disclaimer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    text-align: center;
+    margin: 26px 0 8px;
+    color: #687662;
+    font-size: 11px;
+}
+.patient-disclaimer svg {
+    flex-shrink: 0;
+}
+.patient-chat {
+    overflow: visible;
+}
+.chat-topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    padding: 23px 28px 20px;
+}
+.chat-topline .eyebrow {
+    font-size: 10px;
+    display: block;
+    margin-bottom: 7px;
+}
+.chat-topline h1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 24px;
+    letter-spacing: -0.5px;
+}
+.chat-progress {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 28px;
+    border-block: 1px solid #e5ebdf;
+    font-size: 12px;
+    color: #63765b;
+    background: #f7faf2;
+}
+.chat-transcript {
+    padding: 28px;
+}
+.transcript-message {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.transcript-message:last-child {
+    margin-bottom: 0;
+}
+.transcript-avatar {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: #eaf0e3;
+    color: #4d7054;
+    flex-shrink: 0;
+}
+.transcript-body {
+    max-width: 88%;
+    min-width: 0;
+}
+.transcript-label {
+    font-size: 11px;
+    color: #6d7a64;
+    margin-bottom: 7px;
+}
+.transcript-body p {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    padding: 16px 18px;
+    background: #f3f6ef;
+    border: 1px solid #e8eddf;
+    border-radius: 0 13px 13px 13px;
+    font-size: 14px;
+    line-height: 1.8;
+}
+.transcript-message.patient {
+    flex-direction: row-reverse;
+}
+.transcript-message.patient .transcript-label {
+    text-align: right;
+}
+.transcript-message.patient .transcript-body p {
+    color: #fff;
+    background: #315747;
+    border-color: #315747;
+    border-radius: 13px 0 13px 13px;
+}
+.transcript-message.patient .transcript-avatar {
+    background: #f2f4ed;
+}
+.chat-composer {
+    border-top: 1px solid #e5eadf;
+    padding: 22px 28px;
+}
+.chat-composer > label:not(.chat-check) {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 9px;
+}
+.composer-input {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    background: #fafcf7;
+    border: 1px solid #cfdcc7;
+    border-radius: 10px;
+    padding: 10px;
+}
+.composer-input textarea {
+    flex: 1;
+    min-width: 0;
+    resize: vertical;
+    max-height: 220px;
+    border: 0;
+    background: transparent;
+    padding: 4px;
+    font-size: 15px;
+}
+.composer-input .button {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    padding: 10px;
+}
+.composer-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-top: 12px;
+}
+.composer-footer small {
+    font-size: 11px;
+    color: #6c7966;
+    max-width: 240px;
+}
+.chat-help {
+    color: #67765f;
+    margin-top: 14px;
+    font-size: 13px;
+}
+.chat-end {
+    border-top: 1px solid #edf0e7;
+    padding: 18px 28px;
+    font-size: 12px;
+}
+.chat-end p {
+    color: #697963;
+    margin-bottom: 14px;
+}
+.chat-end button + button {
+    margin-left: 16px;
+}
+.staff-transcript .section-heading {
+    padding: 24px 28px 0;
+}
+.staff-transcript .chat-transcript {
+    max-height: 850px;
+    overflow-y: auto;
+}
+.detail-aside .guidance-card + .guidance-card {
+    margin-top: 20px;
+}
+.detail-aside .fact-grid {
+    grid-template-columns: 1fr;
+}
+.patient-preview {
+    margin-top: 14px;
+}
+@media (max-width: 680px) {
+    .patient-header {
+        padding: 18px;
+        gap: 8px;
+    }
+    .patient-header .brand {
+        font-size: 21px;
+    }
+    .patient-header .brand small {
+        font-size: 8px;
+    }
+    .staff-entry {
+        font-size: 11px;
+        gap: 5px;
+    }
+    .staff-entry > svg:first-child {
+        display: none;
+    }
+    .patient-main {
+        padding: 30px 14px 16px;
+    }
+    .chat-start {
+        padding: 20px;
+    }
+    .chat-start select,
+    .composer-input textarea {
+        font-size: 16px;
+    }
+    .welcome-steps {
+        gap: 12px;
+        font-size: 10px;
+    }
+    .welcome-steps span {
+        gap: 4px;
+    }
+    .welcome-steps svg {
+        width: 14px;
+    }
+    .chat-topline,
+    .chat-progress {
+        padding: 16px 18px;
+    }
+    .chat-topline h1 {
+        font-size: 21px;
+    }
+    .chat-transcript {
+        padding: 22px 14px;
+    }
+    .transcript-message {
+        gap: 8px;
+    }
+    .transcript-body {
+        max-width: calc(100% - 40px);
+    }
+    .transcript-body p {
+        padding: 12px 13px;
+    }
+    .chat-composer,
+    .chat-end {
+        padding: 18px 14px;
+    }
+    .composer-footer {
+        align-items: flex-start;
+    }
+    .composer-footer small {
+        max-width: 165px;
+    }
+    .sidebar nav {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+    .sidebar .patient-preview {
+        justify-content: flex-start;
+        padding-left: 10px;
+    }
+    .patient-disclaimer {
+        font-size: 10px;
+        align-items: flex-start;
+    }
+    .staff-transcript .section-heading {
+        padding: 20px 16px 0;
+    }
+}

@@ -12,7 +12,7 @@ class ScreeningService
 {
     public function __construct(private OpenAIClient $client, private ScreeningOutput $output) {}
 
-    public function screen(array $data, int $userId): ScreeningSession
+    public function screen(array $data, ?int $userId, ?int $patientVisitId = null): ScreeningSession
     {
         $patient = PatientFields::only($data['patient']);
         $prompt = file_get_contents(resource_path('prompts/'.config('triage.prompt_version').'.txt'));
@@ -24,6 +24,7 @@ class ScreeningService
         ];
         $session = ScreeningSession::create([
             'user_id' => $userId,
+            'patient_visit_id' => $patientVisitId,
             'dataset_case_id' => ($data['dataset_case_id'] ?? '') === '' ? null : $data['dataset_case_id'],
             'variant_id' => ($data['variant_id'] ?? '') === '' ? null : $data['variant_id'],
             'language' => $data['language'],

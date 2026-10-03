@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowRight, FlaskConical, LockKeyhole, LoaderCircle } from 'lucide-react';
 import { Brand } from '../../Components/Layout';
 import Field from '../../Components/Field';
@@ -7,9 +7,9 @@ export default function Login() {
     const form = useForm({ email: '', password: '' });
     return (
         <div className="login-page">
-            <Head title="Researcher sign in" />
+            <Head title="Staff sign in" />
             <section className="login-story">
-                <Brand />
+                <Brand href="/" subtitle="PATIENT & STAFF DEMO" />
                 <div>
                     <span className="eyebrow">A PRELIMINARY SCREENING STUDY</span>
                     <h1>
@@ -37,9 +37,9 @@ export default function Login() {
                     <span className="section-icon">
                         <LockKeyhole size={23} />
                     </span>
-                    <p className="eyebrow">RESEARCHER ACCESS</p>
+                    <p className="eyebrow">ADMIN & HEALTHCARE STAFF</p>
                     <h2>Welcome to TriageFlow.</h2>
-                    <p>Sign in to your research workspace.</p>
+                    <p>Sign in to review patient stubs, conversations and triage records.</p>
                     <form
                         onSubmit={(e) => {
                             e.preventDefault();
@@ -71,6 +71,11 @@ export default function Login() {
                             Sign in <ArrowRight size={17} />
                         </button>
                     </form>
+                    <p className="login-help">
+                        <Link href="/" className="text-link">
+                            Open patient chatbot →
+                        </Link>
+                    </p>
                     <p className="login-help">
                         Accounts are created by the project custodian using{' '}
                         <code>php artisan researcher:create</code>.

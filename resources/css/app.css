@@ -8,5 +8,6 @@
 @import './auth.css';
 @import './accessibility.css';
 @import './responsive.css';
+@import './patient-chat.css';
 @source "../js";
 @source "../views";

@@ -11,6 +11,10 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
+        if ($request->routeIs('patient.*')) {
+            return [...parent::share($request), 'auth' => ['user' => null], 'integration' => null];
+        }
+
         return [...parent::share($request),
             'auth' => ['user' => $request->user()?->only('name', 'email')],
             'integration' => [

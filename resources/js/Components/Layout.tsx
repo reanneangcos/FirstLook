@@ -8,19 +8,27 @@ import {
     LogOut,
     Plus,
     ShieldCheck,
+    Users,
+    MessageSquare,
 } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
 import type { SharedProps } from '../types';
 
-export function Brand() {
+export function Brand({
+    href = '/admin',
+    subtitle = 'STAFF WORKSPACE',
+}: {
+    href?: string;
+    subtitle?: string;
+}) {
     return (
-        <Link href="/" className="brand" aria-label="TriageFlow dashboard">
+        <Link href={href} className="brand" aria-label="TriageFlow home">
             <span className="brand-mark">
                 <Activity size={23} strokeWidth={2.2} />
             </span>
             <span>
                 Triage<span className="font-normal">Flow</span>
-                <small>RESEARCH WORKSPACE</small>
+                <small>{subtitle}</small>
             </span>
         </Link>
     );
@@ -30,18 +38,25 @@ export default function Layout({ title, children }: PropsWithChildren<{ title: s
     const { auth, integration } = usePage<SharedProps>().props;
     const { url } = usePage();
     const navigation = [
-        { href: '/', text: 'Overview', icon: LayoutDashboard, active: url === '/' },
+        { href: '/admin', text: 'Overview', icon: LayoutDashboard, active: url === '/admin' },
         {
-            href: '/screenings/create',
-            text: 'New screening',
-            icon: Plus,
-            active: url.startsWith('/screenings/create'),
+            href: '/admin/patients',
+            text: 'Patients & chats',
+            icon: Users,
+            active: url.startsWith('/admin/patients'),
         },
         {
-            href: '/screenings',
+            href: '/admin/screenings/create',
+            text: 'New screening',
+            icon: Plus,
+            active: url.startsWith('/admin/screenings/create'),
+        },
+        {
+            href: '/admin/screenings',
             text: 'Screening history',
             icon: History,
-            active: url.startsWith('/screenings') && !url.startsWith('/screenings/create'),
+            active:
+                url.startsWith('/admin/screenings') && !url.startsWith('/admin/screenings/create'),
         },
     ];
     return (
@@ -67,6 +82,9 @@ export default function Layout({ title, children }: PropsWithChildren<{ title: s
                         </Link>
                     ))}
                 </nav>
+                <Link href="/" className="nav-item patient-preview">
+                    <MessageSquare size={18} /> Patient chatbot
+                </Link>
                 <div className="sidebar-study">
                     <FlaskConical size={21} />
                     <h3>A study in progress</h3>
@@ -81,7 +99,7 @@ export default function Layout({ title, children }: PropsWithChildren<{ title: s
                     <span className="avatar">{auth.user?.name.slice(0, 1).toUpperCase()}</span>
                     <div>
                         <strong>{auth.user?.name}</strong>
-                        <small>Researcher</small>
+                        <small>Admin / healthcare staff</small>
                     </div>
                     <Link
                         href="/logout"
@@ -170,7 +188,7 @@ export function PageHeading({
 
 export function NewScreeningLink() {
     return (
-        <Link href="/screenings/create" className="button primary">
+        <Link href="/admin/screenings/create" className="button primary">
             <Plus size={17} /> New screening <ArrowUpRight size={16} />
         </Link>
     );

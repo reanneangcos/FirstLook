@@ -10,7 +10,14 @@ The current prompt is provisional and requests **Needs review** until approved c
 
 ## What is included
 
-Researcher sign-in, a dashboard with stored counts, structured intake, searchable history, and detailed session records with extracted facts, Method A output, original response, request settings, token usage and attempt history. No dataset or default user is seeded.
+Two interfaces share one saved research record:
+
+- **Patient side — `/`:** guided chatbot, automatic stub number, saved messages, same-browser resume and a preliminary screening response after submission.
+- **Admin / healthcare staff — `/admin`:** protected dashboard, searchable patient stubs, complete conversations and linked triage records. The original structured research intake and screening history remain available here.
+
+All accounts created through `researcher:create` have staff access. Patients do not need accounts and cannot open staff records. No dataset or default user is seeded. Existing accounts continue to work.
+
+For a step-by-step API walkthrough, read **[Connect the chatbot to OpenAI](docs/openai-setup.md)**.
 
 ## Required software
 
@@ -69,7 +76,7 @@ The account command asks for a researcher name, email and a password of at least
 docker compose up -d app node
 ```
 
-Open **http://localhost:8000** and sign in with the researcher account you created. Vite runs on port 5173 for frontend updates. Both published ports are bound to your computer's loopback interface.
+Open **http://localhost:8000/** for the patient chatbot, or **http://localhost:8000/admin** and sign in with your staff account. Vite runs on port 5173 for frontend updates. Both published ports are bound to your computer's loopback interface.
 
 To stop and restart later:
 
@@ -80,7 +87,25 @@ docker compose up -d app node
 
 Normal stop/start preserves the database. `docker compose down -v` deletes named volumes, including the database; do not use it to restart the application.
 
-## Use the prototype
+## Update an existing checkout
+
+```sh
+docker compose exec app php artisan migrate
+docker compose restart app node
+```
+
+The new migrations add conversations and their links to screening records. They preserve existing staff accounts and screenings. Do not use `migrate:fresh` on a database you want to keep.
+
+## Use the patient and staff sides
+
+1. Open the patient chatbot at `/`, confirm a fictional adult case, and choose the response language. Intake questions currently use English; submitted answers keep their original language.
+2. Start a conversation to receive a stub such as `TF-000001`. Reply to each study question or select **Unknown / skip**. Each answer is saved before continuing.
+3. Review the conversation, confirm the excluded-data boundaries and submit for screening. The guided intake uses no API calls; the final screening uses the server-side OpenAI integration.
+4. Staff sign in at `/admin`, select **Patients & chats**, search the stub and open its complete history. **Full triage record** links to the original response and technical metadata.
+
+The same browser resumes its current conversation while its session remains valid (120 minutes of inactivity by default). Refreshing does not allocate a new stub. Ending a conversation, clearing cookies, staff sign-out in the same browser, or session expiry removes patient access; staff retain the saved record. A stub is a record reference, not a login credential or queue position. For a shared demo device, end the current conversation before the next fictional patient.
+
+## Use the structured research intake
 
 1. Select **New screening** and enter one fictional adult case in its original language.
 2. Leave unavailable fields blank. They are stored as unknown, never interpreted as negative findings. Exact submitted patient wording is retained separately.
@@ -124,14 +149,18 @@ Open http://127.0.0.1:8000. For hot reloading, run `npm run dev` in a second ter
 
 | Location | Purpose |
 | --- | --- |
-| `app/Http/Controllers/` | Short page, submission and sign-in controllers |
+| `app/Http/Controllers/PatientChatController.php` | Patient session and chat endpoints |
+| `app/Http/Controllers/PatientRecordController.php` | Staff list/search and transcript pages |
+| `app/Http/Controllers/` | Screening and sign-in controllers |
 | `app/Http/Requests/StoreScreeningRequest.php` | Input validation and adult/synthetic scope confirmation |
 | `app/Models/` and `database/migrations/` | Sessions, attempts and database schema |
 | `app/Services/Screening/` | Allowlist, orchestration and strict output validation |
 | `app/Services/OpenAI/OpenAIClient.php` | Server-only Responses API call |
 | `app/Services/TriageRules/` | Small interface for future approved rules |
 | `resources/prompts/` | Versioned provisional prompt |
-| `resources/js/Pages/` | Dashboard, intake, history, details and authentication |
+| `resources/js/Pages/Patient/` | Patient chatbot |
+| `resources/js/Pages/Admin/Patients/` | Staff patient list and full conversation |
+| `resources/js/Pages/Screenings/` | Research intake, screening history and technical details |
 | `resources/js/Components/` and `types/` | Shared interface elements and types |
 | `resources/css/` | Tailwind entry point and styles grouped by screen |
 | `config/triage.php` | Model, prompt version, schema version, request limits |

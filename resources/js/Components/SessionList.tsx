@@ -53,7 +53,7 @@ export default function SessionList({
                         : 'Submit a fictional adult case to create a saved screening record.'}
                 </p>
                 {!filtered && (
-                    <Link className="text-link" href="/screenings/create">
+                    <Link className="text-link" href="/admin/screenings/create">
                         Create a screening <ArrowRight size={15} />
                     </Link>
                 )}
@@ -77,7 +77,10 @@ export default function SessionList({
                     {sessions.map((session) => (
                         <tr key={session.id}>
                             <td>
-                                <Link className="session-title" href={`/screenings/${session.id}`}>
+                                <Link
+                                    className="session-title"
+                                    href={`/admin/screenings/${session.id}`}
+                                >
                                     {String(
                                         session.patient_input.main_complaint ||
                                             'Unspecified complaint',
@@ -101,7 +104,7 @@ export default function SessionList({
                             <td>
                                 <Link
                                     className="row-arrow"
-                                    href={`/screenings/${session.id}`}
+                                    href={`/admin/screenings/${session.id}`}
                                     aria-label={`View session ${session.id}`}
                                 >
                                     <ArrowRight size={17} />

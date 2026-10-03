@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScreeningSession extends Model
@@ -26,5 +27,10 @@ class ScreeningSession extends Model
     public function attempts(): HasMany
     {
         return $this->hasMany(ScreeningAttempt::class);
+    }
+
+    public function patientVisit(): BelongsTo
+    {
+        return $this->belongsTo(PatientVisit::class);
     }
 }

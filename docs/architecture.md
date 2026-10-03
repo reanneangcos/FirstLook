@@ -1,5 +1,19 @@
 # TriageFlow architecture
 
+## Patient and staff interfaces
+
+The patient route `/` renders only the chatbot. `/admin` and all staff patient/screening routes require a staff account. Existing researcher accounts are staff accounts; this local demo has one trusted staff permission level. Patient sessions are not Laravel user accounts and cannot enter staff pages.
+
+`PatientChatController` resolves the current visit exclusively from Laravel's server-side browser session. No submitted stub or visit ID selects the patient record. `PatientChatService` assigns a unique sequential stub from the database-generated visit ID inside a transaction. `patient_visits` stores progress, original field answers and the scope confirmation time; `chat_messages` stores each message in order with its source (`guide`, `patient`, `model` or `system`). Stub numbers are display references only.
+
+`PatientInterview` contains the guided English questions for the 15 allowlisted fields. Unknown answers stay null. Each answer is validated against the expected question; stale or duplicate question submissions cannot advance another field. Questions require no provider calls. Finishing the interview and confirming the exclusions triggers the existing `ScreeningService` once. Its saved record links to the visit, with a null staff author for patient-originated requests. A unique database constraint permits one screening per visit. An atomic ready-to-screening transition and browser-session request locks prevent duplicate requests; retries stay inside the existing bounded provider sequence.
+
+Patient responses expose only their own stub, progress and display messages. They do not contain provider metadata, raw API bodies, staff identity or integration settings. Staff use `PatientRecordController` to search stubs and inspect the full conversation, reported answers and linked triage. Their lists refresh every 10 seconds. Both interfaces reuse `ChatTranscript`; the final provider message is labeled separately from the intake guide.
+
+Same-browser recovery lasts while the Laravel session is valid. Ending patient access forgets the visit pointer, preserving history for staff. The application has no stub-based recovery, patient registration or cross-device login. A crashed screening may remain in progress for staff inspection; no automatic second prediction is generated.
+
+The latest user-approved scope adds patient and staff presentation to the fictional-case demo. It does not add a production patient portal, queue ordering or approved clinical rules.
+
 ## Request flow
 
 ```text
@@ -22,7 +36,7 @@ Researcher sign-in → intake validation → save original input + prompt/settin
 
 `ScreeningController` delegates submission to `ScreeningService`. That service saves the session before any provider call. No queue worker is required: one browser submission waits for a bounded request sequence. A crashed process may leave a session as `processing`; the interface does not disguise it as Needs review.
 
-Laravel sessions protect all research pages and submissions. Researcher accounts are created through `researcher:create`, with hashed passwords and no public registration. CSRF middleware remains enabled, sign-in is limited to five attempts per minute, and screening submission to ten per minute. This is one trusted local research workspace, not a multi-tenant patient portal.
+Laravel authentication protects all staff research pages and submissions; public patient endpoints have separate session ownership, CSRF protection and rate limits. Researcher accounts are created through `researcher:create`, with hashed passwords and no public registration. CSRF middleware remains enabled, sign-in is limited to five attempts per minute, and screening submission to ten per minute. This is one trusted local research workspace, not a multi-tenant patient portal.
 
 ## Study interpretation
 

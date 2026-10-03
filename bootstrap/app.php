@@ -12,9 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(web: __DIR__.'/../routes/web.php', commands: __DIR__.'/../routes/console.php', health: '/up')
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [HandleInertiaRequests::class]);
+        $middleware->redirectUsersTo(fn (Request $request) => route('dashboard'));
         // Preserve the submitted patient wording, whitespace and empty fields for the research record.
-        $middleware->trimStrings(except: [fn (Request $request) => $request->isMethod('post') && $request->is('screenings')]);
-        $middleware->convertEmptyStringsToNull(except: [fn (Request $request) => $request->isMethod('post') && $request->is('screenings')]);
+        $preservesPatientText = fn (Request $request) => $request->isMethod('post') && $request->is('admin/screenings', 'patient/messages');
+        $middleware->trimStrings(except: [$preservesPatientText]);
+        $middleware->convertEmptyStringsToNull(except: [$preservesPatientText]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(fn (Request $request) => $request->expectsJson());

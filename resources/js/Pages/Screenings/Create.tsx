@@ -68,7 +68,7 @@ export default function Create({ languages }: { languages: string[] }) {
                 <form
                     onSubmit={(e) => {
                         e.preventDefault();
-                        form.post('/screenings');
+                        form.post('/admin/screenings');
                     }}
                     className="intake-form"
                 >
@@ -225,7 +225,7 @@ export default function Create({ languages }: { languages: string[] }) {
                             </div>
                         ))}
                         <div className="form-actions">
-                            <Link href="/" className="button secondary">
+                            <Link href="/admin" className="button secondary">
                                 Cancel
                             </Link>
                             <button

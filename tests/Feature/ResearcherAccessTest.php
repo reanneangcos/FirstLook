@@ -20,10 +20,10 @@ class ResearcherAccessTest extends TestCase
 
     public function test_all_research_pages_and_submission_require_sign_in(): void
     {
-        foreach (['/', '/screenings', '/screenings/create', '/screenings/missing-session'] as $path) {
+        foreach (['/admin', '/admin/screenings', '/admin/screenings/create', '/admin/screenings/missing-session'] as $path) {
             $this->get($path)->assertRedirect('/login');
         }
-        $this->post('/screenings', MockScreening::input())->assertRedirect('/login');
+        $this->post('/admin/screenings', MockScreening::input())->assertRedirect('/login');
         $this->get('/register')->assertNotFound();
     }
 
@@ -32,7 +32,7 @@ class ResearcherAccessTest extends TestCase
         User::factory()->create(['email' => 'researcher@example.test', 'password' => Hash::make('synthetic-test-password')]);
         $this->post('/login', ['email' => 'researcher@example.test', 'password' => 'wrong'])->assertSessionHasErrors('email');
         $this->assertGuest();
-        $this->post('/login', ['email' => 'researcher@example.test', 'password' => 'synthetic-test-password'])->assertRedirect('/');
+        $this->post('/login', ['email' => 'researcher@example.test', 'password' => 'synthetic-test-password'])->assertRedirect('/admin');
         $this->assertAuthenticated();
         $this->post('/logout')->assertRedirect('/login');
         $this->assertGuest();

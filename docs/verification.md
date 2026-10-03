@@ -6,8 +6,8 @@ Completed October 3, 2026 (Asia/Manila). All screening API responses used for au
 
 | Check | Result |
 | --- | --- |
-| Native `php artisan test --compact` | 34 tests, 170 assertions passed |
-| Docker `php artisan test --compact` | 34 tests, 170 assertions passed |
+| Native `php artisan test --compact` | 46 tests, 420 assertions passed |
+| Docker `php artisan test --compact` | 46 tests, 420 assertions passed |
 | `npm run build` | TypeScript check and Vite production build passed |
 | PHP formatting with Laravel Pint | Passed |
 | `composer validate --no-check-publish` | Valid; warns about deliberately exact framework/adapter version pins |
@@ -30,7 +30,7 @@ Tests use `Http::preventStrayRequests()` and an isolated in-memory SQLite databa
 
 ## Docker checks
 
-Built the PHP image, installed the locked dependencies, migrated the database and started both actual services, `app` and `node`. Confirmed both were running and the frontend built inside the Node container. Restarted both services and verified the database's migration history remained intact. The normal Docker database contains zero researchers and zero screening records after QA; account creation is an explicit setup step.
+Built the PHP image, installed the locked dependencies, migrated the database and started both actual services, `app` and `node`. Confirmed both were running and the frontend built inside the Node container. Restarted both services and verified the database's migration history remained intact. The original verification used an empty normal database. Later, an explicitly requested staff account was created. The patient/chat migrations preserve that account and any existing records; QA conversations use a separate temporary database.
 
 The Compose project name is `triageflow-thesis2`. It keeps this checkout's containers and volumes separate from the older `THESIS` checkout. Ports 8000 and 5173 bind to loopback only.
 
@@ -49,3 +49,13 @@ Checked sign-in, dashboard counts, intake labels and confirmation errors, submis
 - Narrative exclusions require researcher review. Quotation validation does not establish clinical accuracy, prevent every diagnosis in generated prose, or prove resistance to prompt injection.
 - Processing is synchronous. A process interruption may leave a record marked Processing; automatic recovery is not implemented.
 - The manuscript was not edited and the application was not deployed.
+
+## Patient and staff extension
+
+Added feature coverage for public chat entry, unique automatic stubs, same-session recovery, unknown answers, adult validation, stale/duplicate answers, completed-chat screening, duplicate-submission prevention, patient isolation, protected staff access, stub search, transcript links, ending browser access without deleting records, and hiding staff settings from patient pages. Rate-limit counters for intake replies and screening submissions are separate.
+
+The API still runs only at final screening submission. Guided intake replies do not incur model calls. No live API call was made for this extension. Existing model validation/retry tests remain in the suite.
+
+The patient browser walkthrough completed all 15 questions, saved the missing-configuration outcome, and recovered the same completed stub after a reload. The 390-pixel mobile chat had no whole-page horizontal overflow.
+
+Staff browser QA confirmed sign-in, stub search, the complete transcript, reported-field summary and the link to the full triage record. Patient chat, staff list and staff conversation pages matched a 390-pixel viewport without whole-page overflow. No JavaScript errors were reported during the completed walkthrough.

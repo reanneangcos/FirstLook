@@ -28,7 +28,7 @@ export default function Index({
                     onSubmit={(e) => {
                         e.preventDefault();
                         router.get(
-                            '/screenings',
+                            '/admin/screenings',
                             { q, status },
                             { preserveState: true, replace: true },
                         );
@@ -67,7 +67,7 @@ export default function Index({
                     {(filters.q || filters.status) && (
                         <Link
                             className="text-link"
-                            href="/screenings"
+                            href="/admin/screenings"
                             onClick={() => {
                                 setQ('');
                                 setStatus('');

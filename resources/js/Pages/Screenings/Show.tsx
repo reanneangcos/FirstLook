@@ -21,7 +21,7 @@ function JsonBlock({ value }: { value: unknown }) {
 export default function Show({ screening: s }: { screening: Session }) {
     return (
         <Layout title="Session details">
-            <Link href="/screenings" className="text-link back-link">
+            <Link href="/admin/screenings" className="text-link back-link">
                 <ArrowLeft size={15} /> Screening history
             </Link>
             <PageHeading
@@ -38,6 +38,21 @@ export default function Show({ screening: s }: { screening: Session }) {
                         <p>
                             This record tests the interface. It is not a live API result or a
                             clinically reviewed case.
+                        </p>
+                    </div>
+                </div>
+            )}
+            {s.patient_visit && (
+                <div className="notice neutral">
+                    <div>
+                        <strong>Patient stub {s.patient_visit.stub_number}</strong>
+                        <p>
+                            <Link
+                                href={`/admin/patients/${s.patient_visit.id}`}
+                                className="text-link"
+                            >
+                                View the full patient conversation →
+                            </Link>
                         </p>
                     </div>
                 </div>

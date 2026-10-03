@@ -64,7 +64,7 @@ class ScreeningController extends Controller
 
     public function show(ScreeningSession $screening): Response
     {
-        return Inertia::render('Screenings/Show', ['screening' => $screening->load('attempts')]);
+        return Inertia::render('Screenings/Show', ['screening' => $screening->load(['attempts', 'patientVisit:id,stub_number'])]);
     }
 
     private function summaryColumns(): array
