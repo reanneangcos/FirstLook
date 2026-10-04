@@ -40,7 +40,7 @@ export default function PatientWelcome({ languages }: { languages: string[] }) {
                     start.post('/patient/start');
                 }}
             >
-                <label htmlFor="chat-language">Which language will you use?</label>
+                <label htmlFor="chat-language">Which language will you mainly use?</label>
                 <select
                     id="chat-language"
                     value={start.data.language}
@@ -51,8 +51,8 @@ export default function PatientWelcome({ languages }: { languages: string[] }) {
                     ))}
                 </select>
                 <small>
-                    The intake questions are in English. Your replies stay in their original
-                    language.
+                    The intake questions are in English. You can mix English, Bisaya and Tagalog in
+                    your replies; your original wording is preserved.
                 </small>
                 <label className="chat-check">
                     <input

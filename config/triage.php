@@ -11,5 +11,5 @@ return [
     'connect_timeout_seconds' => 5,
     'max_attempts' => 3,
     'retry_delay_ms' => 500,
-    'languages' => ['English', 'Tagalog', 'Bisaya', 'English–Tagalog', 'English–Bisaya', 'Tagalog–Bisaya'],
+    'languages' => ['English', 'Bisaya', 'Tagalog'],
 ];

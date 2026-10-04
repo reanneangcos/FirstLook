@@ -14,7 +14,7 @@ class PatientChatService
         return DB::transaction(function () use ($language): PatientVisit {
             $visit = PatientVisit::create(['language' => $language, 'answers' => [], 'scope_confirmed_at' => now()]);
             $visit->update(['stub_number' => 'TF-'.str_pad((string) $visit->id, 6, '0', STR_PAD_LEFT)]);
-            $this->message($visit, 'assistant', 'guide', 'Welcome. Your stub is '.$visit->stub_number.'. I will collect the reported information one question at a time. Answer in '.$language.'. Choose Unknown for missing information.');
+            $this->message($visit, 'assistant', 'guide', 'Welcome. Your stub is '.$visit->stub_number.'. I will collect the reported information one question at a time. Your selected language is '.$language.', but you can mix English, Bisaya and Tagalog in your replies. Choose Unknown for missing information.');
             $question = PatientInterview::current(0);
             $this->message($visit, 'assistant', 'guide', $question['text'], $question['field']);
 
