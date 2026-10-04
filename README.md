@@ -123,7 +123,7 @@ docker compose run --rm node npm run build
 docker compose run --rm app vendor/bin/pint --dirty --format agent
 ```
 
-Tests block unexpected HTTP requests and use an isolated in-memory SQLite database, forced in `phpunit.xml` even when Docker supplies a database path. Test fixtures are in `tests/Support/MockScreening.php`. They are not imported into the normal application database.
+Tests block unexpected HTTP requests and use an isolated in-memory SQLite database, forced in both PHPUnit environment and server variables, with a pre-migration guard in `tests/TestCase.php`. Test fixtures are in `tests/Support/MockScreening.php`. They are not imported into the normal application database.
 
 The build includes TypeScript checking. `npm run format` formats frontend source. Running a production asset build while the Vite service is active may remove its `public/hot` marker; restart `node` to return to hot reloading.
 

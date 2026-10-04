@@ -26,11 +26,11 @@ Feature and unit tests cover:
 - Adult/synthetic scope confirmation, researcher authentication and rate limits.
 - Stored dashboard counts, searchable history and session details.
 
-Tests use `Http::preventStrayRequests()` and an isolated in-memory SQLite database. The test configuration forces that database even inside Docker, where the normal application has a persistent database path.
+Tests use `Http::preventStrayRequests()` and an isolated in-memory SQLite database. PHPUnit forces both environment and server variables to use that database. The test base class refuses to start database refreshes unless the application is in testing mode with in-memory SQLite. Docker supplies database paths through both variable sources, so forcing environment variables alone was insufficient.
 
 ## Docker checks
 
-Built the PHP image, installed the locked dependencies, migrated the database and started both actual services, `app` and `node`. Confirmed both were running and the frontend built inside the Node container. Restarted both services and verified the database's migration history remained intact. The original verification used an empty normal database. Later, an explicitly requested staff account was created. The patient/chat migrations preserve that account and any existing records; QA conversations use a separate temporary database.
+Built the PHP image, installed the locked dependencies, migrated the database and started both actual services, `app` and `node`. Confirmed both were running and the frontend built inside the Node container. Restarted both services and verified the database's migration history remained intact. The original verification used an empty normal database. Later, an explicitly requested staff account was created. QA conversations use a separate temporary database. During final verification, a Docker environment-precedence bug caused database tests to reset the application database and remove the staff account. The isolation configuration was corrected, a pre-migration guard was added, and the account was restored with its previously supplied credentials. The cause was verified in PHPUnit and Laravel’s installed environment-loading code.
 
 The Compose project name is `triageflow-thesis2`. It keeps this checkout's containers and volumes separate from the older `THESIS` checkout. Ports 8000 and 5173 bind to loopback only.
 
@@ -59,3 +59,5 @@ The API still runs only at final screening submission. Guided intake replies do 
 The patient browser walkthrough completed all 15 questions, saved the missing-configuration outcome, and recovered the same completed stub after a reload. The 390-pixel mobile chat had no whole-page horizontal overflow.
 
 Staff browser QA confirmed sign-in, stub search, the complete transcript, reported-field summary and the link to the full triage record. Patient chat, staff list and staff conversation pages matched a 390-pixel viewport without whole-page overflow. No JavaScript errors were reported during the completed walkthrough.
+
+After the isolation fix, the full Docker suite passed with 46 tests and 420 assertions. The application database contained one staff account both before and after that run, confirming that the restored account survived.
