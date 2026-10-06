@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ScreenPatientChatRequest;
 use App\Http\Requests\StartPatientChatRequest;
 use App\Http\Requests\StoreChatMessageRequest;
 use App\Models\PatientVisit;
@@ -15,15 +16,17 @@ use Inertia\Response;
 
 class PatientChatController extends Controller
 {
-    public function show(Request $request): Response
+    public function show(Request $request, PatientChatService $chat): Response
     {
         $visit = PatientVisit::find($request->session()->get('patient_visit_id'));
 
         return Inertia::render('Patient/Chat', [
             'visit' => $visit ? ['stub_number' => $visit->stub_number, 'language' => $visit->language,
                 'status' => $visit->status, 'question_index' => $visit->question_index,
+                'conversational' => $visit->interview_state !== null,
                 'messages' => $visit->messages()->get(['id', 'role', 'source', 'content', 'created_at'])] : null,
-            'question' => $visit?->status === 'collecting' ? PatientInterview::current($visit->question_index) : null,
+            'review' => $visit?->status === 'ready' && $visit->interview_state !== null ? $visit->answers : null,
+            'question' => $visit ? $chat->currentQuestion($visit) : null,
             'questionCount' => count(PatientInterview::questions()), 'languages' => config('triage.languages'),
         ]);
     }
@@ -45,10 +48,10 @@ class PatientChatController extends Controller
         return to_route('patient.chat');
     }
 
-    public function screen(Request $request, PatientChatService $chat, ScreeningService $service): RedirectResponse
+    public function screen(ScreenPatientChatRequest $request, PatientChatService $chat, ScreeningService $service): RedirectResponse
     {
-        $request->validate(['scope_confirmed' => ['accepted']]);
-        $chat->screen($this->currentVisit($request), $service);
+        $visit = $this->currentVisit($request);
+        $chat->screen($visit, $service, $request->validated('patient'));
 
         return to_route('patient.chat');
     }

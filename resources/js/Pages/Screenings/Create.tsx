@@ -282,16 +282,17 @@ export default function Create({ languages }: { languages: string[] }) {
                                     <LockKeyhole size={15} />
                                 </span>
                                 <div>
-                                    <strong>Reserve Method B</strong>
-                                    <p>Await approved rules for the same response.</p>
+                                    <strong>Evaluate Method B</strong>
+                                    <p>Apply ESI v4 rules; missing assessments require review.</p>
                                 </div>
                             </li>
                         </ol>
                         <div className="inline-note">
                             <CircleHelp size={18} />
                             <p>
-                                The current provisional prompt requests Needs review until approved
-                                clinical criteria are available.
+                                Luna can assign a preliminary ESI level. These exploratory results
+                                use the model’s existing knowledge while study criteria await
+                                review.
                             </p>
                         </div>
                     </section>

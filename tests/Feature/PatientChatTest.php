@@ -8,6 +8,7 @@ use App\Models\ScreeningSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Support\MockScreening;
 use Tests\TestCase;
@@ -21,7 +22,14 @@ class PatientChatTest extends TestCase
         parent::setUp();
         $this->withoutVite();
         Http::preventStrayRequests();
-        config(['triage.api_key' => 'mock-only-key', 'triage.model' => 'gpt-6-luna', 'triage.retry_delay_ms' => 0]);
+        config(['triage.intake_version' => 'guided-v1', 'triage.api_key' => 'mock-only-key', 'triage.model' => 'gpt-6-luna', 'triage.retry_delay_ms' => 0]);
+    }
+
+    private function answerChat(array $data): TestResponse
+    {
+        $visit = PatientVisit::find(session('patient_visit_id'));
+
+        return $this->post('/patient/messages', $data + ['question_revision' => $visit?->messages()->count() ?? 0]);
     }
 
     private function startChat(): PatientVisit
@@ -52,12 +60,12 @@ class PatientChatTest extends TestCase
     public function test_answers_preserve_wording_and_reject_stale_questions_and_children(): void
     {
         $visit = $this->startChat();
-        $this->post('/patient/messages', ['field' => 'age', 'message' => '17', 'skip' => false])->assertSessionHasErrors(['message' => 'This demo is for fictional adults aged 18 and above.']);
+        $this->answerChat(['field' => 'age', 'message' => '17', 'skip' => false])->assertSessionHasErrors(['message' => 'This demo is for fictional adults aged 18 and above.']);
         $this->assertSame(0, $visit->fresh()->question_index);
-        $this->post('/patient/messages', ['field' => 'age', 'message' => '34', 'skip' => false])->assertRedirect('/');
-        $this->post('/patient/messages', ['field' => 'age', 'message' => '45', 'skip' => false])->assertSessionHasErrors('message');
-        $this->post('/patient/messages', ['field' => 'reported_sex', 'message' => '  Female  ', 'skip' => false])->assertRedirect('/');
-        $this->post('/patient/messages', ['field' => 'main_complaint', 'message' => '', 'skip' => true])->assertRedirect('/');
+        $this->answerChat(['field' => 'age', 'message' => '34', 'skip' => false])->assertRedirect('/');
+        $this->answerChat(['field' => 'age', 'message' => '45', 'skip' => false])->assertSessionHasErrors('message');
+        $this->answerChat(['field' => 'reported_sex', 'message' => '  Female  ', 'skip' => false])->assertRedirect('/');
+        $this->answerChat(['field' => 'main_complaint', 'message' => '', 'skip' => true])->assertRedirect('/');
         $this->assertSame('  Female  ', $visit->fresh()->answers['reported_sex']);
         $this->assertNull($visit->fresh()->answers['main_complaint']);
         $this->assertDatabaseHas('chat_messages', ['patient_visit_id' => $visit->id, 'content' => '  Female  ', 'role' => 'patient']);
@@ -69,9 +77,9 @@ class PatientChatTest extends TestCase
         $visit = PatientVisit::factory()->create(['question_index' => 2]);
         $this->withSession(['patient_visit_id' => $visit->id]);
         foreach (['', '   ', str_repeat('x', 3001)] as $message) {
-            $this->post('/patient/messages', ['field' => 'main_complaint', 'message' => $message, 'skip' => false])->assertSessionHasErrors('message');
+            $this->answerChat(['field' => 'main_complaint', 'message' => $message, 'skip' => false])->assertSessionHasErrors('message');
         }
-        $this->post('/patient/messages', ['field' => 'expert_priority', 'message' => '1', 'skip' => false])->assertSessionHasErrors('field');
+        $this->answerChat(['field' => 'expert_priority', 'message' => '1', 'skip' => false])->assertSessionHasErrors('field');
         $this->assertSame(2, $visit->fresh()->question_index);
         $this->assertDatabaseCount('chat_messages', 0);
     }
@@ -86,7 +94,7 @@ class PatientChatTest extends TestCase
             'onset' => null, 'duration' => null, 'reported_severity' => null, 'worsening' => null,
             'tests_completed' => null, 'tests_requested' => null, 'medical_devices' => null];
         foreach ($answers as $field => $answer) {
-            $this->post('/patient/messages', ['field' => $field, 'message' => $answer, 'skip' => $answer === null])->assertRedirect('/');
+            $this->answerChat(['field' => $field, 'message' => $answer, 'skip' => $answer === null])->assertRedirect('/');
         }
         $this->assertSame('ready', $visit->fresh()->status);
         Http::assertNothingSent();
@@ -96,7 +104,7 @@ class PatientChatTest extends TestCase
         $screening = $visit->fresh()->screening;
         $this->assertSame(3, $screening->method_a_priority);
         $this->assertNull($screening->user_id);
-        $this->assertSame('not_implemented', $screening->method_b_status);
+        $this->assertSame('needs_review', $screening->method_b_status);
         $this->assertSame($answers, $screening->original_input);
         $this->assertDatabaseCount('screening_sessions', 1);
         $this->assertSame(1, $visit->messages()->where('source', 'model')->count());
@@ -123,7 +131,7 @@ class PatientChatTest extends TestCase
         ChatMessage::factory()->create(['patient_visit_id' => $other->id, 'content' => 'OTHER-CONVERSATION']);
         $own = $this->startChat();
         $this->get('/?stub_number='.$other->stub_number.'&patient_visit_id='.$other->id)->assertInertia(fn (Assert $page) => $page->where('visit.stub_number', $own->stub_number)->has('visit.messages', 2));
-        $this->post('/patient/messages', ['patient_visit_id' => $other->id, 'field' => 'age', 'message' => '44', 'skip' => false])->assertRedirect('/');
+        $this->answerChat(['patient_visit_id' => $other->id, 'field' => 'age', 'message' => '44', 'skip' => false])->assertRedirect('/');
         $this->assertSame([], $other->fresh()->answers);
         $this->assertSame('44', $own->fresh()->answers['age']);
         $this->get('/admin/patients/'.$other->id)->assertRedirect('/login');
@@ -132,7 +140,7 @@ class PatientChatTest extends TestCase
 
     public function test_anonymous_messages_require_a_browser_visit_and_cannot_trigger_screening(): void
     {
-        $this->post('/patient/messages', ['field' => 'age', 'message' => '34', 'skip' => false])->assertForbidden();
+        $this->answerChat(['field' => 'age', 'message' => '34', 'skip' => false])->assertForbidden();
         $this->post('/patient/screen', ['scope_confirmed' => true])->assertNotFound();
         $this->assertDatabaseCount('screening_sessions', 0);
         Http::assertNothingSent();

@@ -12,6 +12,11 @@ class ChatMessage extends Model
 
     protected $guarded = ['id'];
 
+    protected function casts(): array
+    {
+        return ['metadata' => 'array'];
+    }
+
     public function patientVisit(): BelongsTo
     {
         return $this->belongsTo(PatientVisit::class);

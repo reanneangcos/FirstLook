@@ -1,36 +1,39 @@
 import { useForm } from '@inertiajs/react';
 import { ArrowRight, Check, LoaderCircle, MessageCircle, Ticket } from 'lucide-react';
+import { patientChatCopy } from '../patientLanguage';
 
-export default function PatientWelcome({ languages }: { languages: string[] }) {
+export default function PatientWelcome({
+    languages,
+    language,
+    onLanguageChange,
+}: {
+    languages: string[];
+    language: string;
+    onLanguageChange: (language: string) => void;
+}) {
     const start = useForm({
-        language: 'English',
+        language,
         synthetic_confirmed: false,
         adult_confirmed: false,
     });
+    const copy = patientChatCopy(language).ui;
     return (
         <section className="chat-welcome">
             <span className="welcome-icon">
                 <MessageCircle size={30} />
             </span>
-            <p className="eyebrow">A SIMPLE START</p>
-            <h1>
-                Let’s take it
-                <br />
-                <em>one question at a time.</em>
-            </h1>
-            <p className="welcome-copy">
-                Share the fictional patient’s symptoms in a guided chat. We’ll keep the conversation
-                together under one stub number for staff to review.
-            </p>
+            <p className="eyebrow">{copy.welcomeEyebrow}</p>
+            <h1>{copy.welcomeTitle}</h1>
+            <p className="welcome-copy">{copy.welcomeCopy}</p>
             <div className="welcome-steps">
                 <span>
-                    <Ticket size={17} /> Get a stub
+                    <Ticket size={17} /> {copy.getStub}
                 </span>
                 <span>
-                    <MessageCircle size={17} /> Answer in chat
+                    <MessageCircle size={17} /> {copy.answerInChat}
                 </span>
                 <span>
-                    <Check size={17} /> Save for review
+                    <Check size={17} /> {copy.saveForReview}
                 </span>
             </div>
             <form
@@ -40,20 +43,21 @@ export default function PatientWelcome({ languages }: { languages: string[] }) {
                     start.post('/patient/start');
                 }}
             >
-                <label htmlFor="chat-language">Which language will you mainly use?</label>
+                <label htmlFor="chat-language">{copy.languageLabel}</label>
                 <select
                     id="chat-language"
                     value={start.data.language}
-                    onChange={(event) => start.setData('language', event.target.value)}
+                    onChange={(event) => {
+                        start.setData('language', event.target.value);
+                        start.clearErrors();
+                        onLanguageChange(event.target.value);
+                    }}
                 >
                     {languages.map((language) => (
                         <option key={language}>{language}</option>
                     ))}
                 </select>
-                <small>
-                    The intake questions are in English. You can mix English, Bisaya and Tagalog in
-                    your replies; your original wording is preserved.
-                </small>
+                <small>{copy.languageHelp}</small>
                 <label className="chat-check">
                     <input
                         type="checkbox"
@@ -62,7 +66,7 @@ export default function PatientWelcome({ languages }: { languages: string[] }) {
                             start.setData('synthetic_confirmed', event.target.checked)
                         }
                     />
-                    I’m using a fictional case, without names or personal identifiers.
+                    {copy.syntheticConfirmation}
                 </label>
                 <label className="chat-check">
                     <input
@@ -70,7 +74,7 @@ export default function PatientWelcome({ languages }: { languages: string[] }) {
                         checked={start.data.adult_confirmed}
                         onChange={(event) => start.setData('adult_confirmed', event.target.checked)}
                     />
-                    The fictional patient is aged 18 or above.
+                    {copy.adultConfirmation}
                 </label>
                 {Object.values(start.errors).map((error, index) => (
                     <p className="chat-error" role="alert" key={index}>
@@ -83,7 +87,7 @@ export default function PatientWelcome({ languages }: { languages: string[] }) {
                     ) : (
                         <MessageCircle size={18} />
                     )}{' '}
-                    Start conversation <ArrowRight size={17} />
+                    {copy.start} <ArrowRight size={17} />
                 </button>
             </form>
         </section>

@@ -55,7 +55,7 @@ export default function Dashboard({ counts, sessions }: { counts: Counts; sessio
             <PageHeading
                 eyebrow="RESEARCH OVERVIEW"
                 title="A clearer view of every screening."
-                description="Your workspace for a controlled, shared-response comparison."
+                description="Compare GPT Luna triage with a hybrid method on the same fictional cases."
                 action={<NewScreeningLink />}
             />
             <div className="research-banner">
@@ -64,7 +64,7 @@ export default function Dashboard({ counts, sessions }: { counts: Counts; sessio
                 </div>
                 <div>
                     <span className="eyebrow">THE TRIAGEFLOW STUDY</span>
-                    <h2>One response. Two methods to examine.</h2>
+                    <h2>One case. Two methods to examine.</h2>
                     <p>
                         Explore multilingual preliminary screening with a pretrained LLM and a
                         future approved rule layer.
@@ -104,27 +104,30 @@ export default function Dashboard({ counts, sessions }: { counts: Counts; sessio
                 <section className="panel study-card">
                     <div className="section-heading">
                         <h2>The comparison</h2>
-                        <span className="small-tag">Paired response</span>
+                        <span className="small-tag">Same case inputs</span>
                     </div>
                     <div className="method-row">
                         <span className="method-letter">A</span>
                         <div>
-                            <strong>Pretrained LLM</strong>
-                            <p>Original preliminary prediction, saved for inspection.</p>
+                            <strong>GPT Luna triage</strong>
+                            <p>Luna understands the case and decides preliminary triage.</p>
                         </div>
                         <span className="method-state">Implemented</span>
                     </div>
                     <div className="method-connector">
                         <ArrowRight size={14} />
-                        <span>Same saved response</span>
+                        <span>Compare results for the same case</span>
                     </div>
                     <div className="method-row">
                         <span className="method-letter muted">B</span>
                         <div>
-                            <strong>LLM + approved rules</strong>
-                            <p>Rule processing awaits clinical review.</p>
+                            <strong>Hybrid: Luna + approved rules</strong>
+                            <p>
+                                Luna understands the information; approved rules alone decide
+                                triage.
+                            </p>
                         </div>
-                        <span className="small-tag">Not implemented</span>
+                        <span className="small-tag">ESI v4 · Review pending</span>
                     </div>
                 </section>
                 <section className="panel boundaries-card">
@@ -137,7 +140,7 @@ export default function Dashboard({ counts, sessions }: { counts: Counts; sessio
                         personal identifiers, diagnoses or treatment advice.
                     </p>
                     <div className="boundary-footer">
-                        Provisional prompt · Clinical criteria pending
+                        Exploratory LLM triage · Study criteria pending review
                     </div>
                 </section>
             </div>

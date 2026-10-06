@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\ScreeningSession;
 use App\Models\User;
 use App\Services\Screening\ScreeningService;
-use App\Services\TriageRules\PendingRuleLayer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -33,7 +32,7 @@ class ScreeningTest extends TestCase
         return ScreeningSession::latest()->firstOrFail();
     }
 
-    public function test_valid_classified_prediction_is_saved_exactly_and_method_b_is_unimplemented(): void
+    public function test_valid_classified_prediction_is_saved_exactly_and_method_b_requires_supported_inputs(): void
     {
         $raw = json_encode(MockScreening::envelope(MockScreening::output(2)), JSON_PRETTY_PRINT);
         Http::fake(['api.openai.com/*' => Http::response($raw, 200)]);
@@ -48,10 +47,9 @@ class ScreeningTest extends TestCase
         $this->assertSame(50, $session->token_usage['total_tokens']);
         $this->assertNotNull($session->completed_at);
         $this->assertNotNull($session->latency_ms);
-        $this->assertSame('not_implemented', $session->method_b_status);
-        $result = (new PendingRuleLayer)->evaluate($session);
-        $this->assertNull($result['priority']);
-        $this->assertSame('not_implemented', $result['status']);
+        $this->assertSame('needs_review', $session->method_b_status);
+        $this->assertNull($session->method_b_priority);
+        $this->assertSame(MockScreening::output(2)['extracted_facts'], $session->method_b_input['extracted_facts']);
         $this->assertSame(2, $session->fresh()->method_a_priority);
         Http::assertSentCount(1);
     }
@@ -63,6 +61,32 @@ class ScreeningTest extends TestCase
         $this->assertSame('needs_review', $session->method_a_status);
         $this->assertNull($session->method_a_priority);
         $this->assertSame('completed', $session->processing_status);
+        Http::assertSentCount(1);
+    }
+
+    public function test_exploratory_prompt_allows_classification_and_keeps_previous_records_unchanged(): void
+    {
+        $previous = ScreeningSession::factory()->create(['prompt_version' => 'screening-v0.1-provisional',
+            'prompt_text' => 'Historical review-only prompt.', 'method_a_status' => 'needs_review', 'method_a_priority' => null]);
+        Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope(MockScreening::output(2)))]);
+        $this->post('/admin/screenings', MockScreening::input())->assertRedirect();
+        $session = ScreeningSession::where('id', '!=', $previous->id)->firstOrFail();
+        $this->assertSame('screening-v0.3-llm-baseline', $session->prompt_version);
+        $this->assertSame('exploratory_llm_only', $session->request_settings['classification_mode']);
+        $this->assertSame('pending_clinical_review', $session->request_settings['criteria_status']);
+        $this->assertSame(2, $session->method_a_priority);
+        $this->assertNull($session->method_b_priority);
+        $this->assertSame('needs_review', $previous->fresh()->method_a_status);
+        $this->assertSame('Historical review-only prompt.', $previous->fresh()->prompt_text);
+        Http::assertSent(function ($request) use ($session): bool {
+            $prompt = $request['input'][0]['content'];
+
+            return $prompt === $session->prompt_text
+                && str_contains($prompt, 'Return status classified')
+                && str_contains($prompt, 'A blank record requires Needs review')
+                && ! str_contains($prompt, 'this provisional version must return status needs_review')
+                && ! str_contains($prompt, '{{response_language}}');
+        });
         Http::assertSentCount(1);
     }
 
@@ -217,7 +241,7 @@ class ScreeningTest extends TestCase
         $this->get('/admin/screenings?q=Itchy&status=needs_review')->assertInertia(fn (Assert $p) => $p->component('Screenings/Index')->where('sessions.total', 1));
         $this->get('/admin/screenings?q=no-match')->assertInertia(fn (Assert $p) => $p->where('sessions.total', 0));
         $this->get('/admin/screenings/'.$session->id)->assertInertia(fn (Assert $p) => $p->component('Screenings/Show')
-            ->where('screening.method_a_priority', null)->where('screening.method_b_status', 'not_implemented')
+            ->where('screening.method_a_priority', null)->where('screening.method_b_status', 'needs_review')
             ->missing('integration.api_key'));
     }
 }

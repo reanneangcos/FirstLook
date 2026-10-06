@@ -14,6 +14,11 @@ return [
     |
     */
 
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-6-luna'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

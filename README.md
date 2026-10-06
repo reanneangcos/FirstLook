@@ -2,11 +2,11 @@
 
 A local research prototype for a paired comparison of multilingual preliminary screening methods. It uses fictional adult cases only. It does not diagnose, recommend treatment, train a model, or manage patient queues.
 
-- **Method A:** the original accepted LLM response, preserved with its input and request metadata.
-- **Method B:** **Not implemented**. Approved rules will consume that same saved response without another LLM call.
+- **Method A — GPT Luna triage:** Luna understands the case and assigns the preliminary triage result. Its original response and request metadata are preserved.
+- **Method B — hybrid:** the deterministic ESI v4 layer evaluates the same saved extracted facts and records a separate result and trace. Clinical criteria await reviewer approval, and the current patient-reported input lacks required clinical assessments. Method B returns Needs review when unsupported and never copies or falls back to Luna’s priority.
 - **Priorities:** provisional ESI 1–5. **Needs review** has no priority. Technical failures are recorded separately.
 
-The current prompt is provisional and requests **Needs review** until approved clinical criteria are supplied. Tests include explicitly mocked ESI outputs to verify the complete response contract. These fixtures do not establish clinical validity.
+The active `screening-v0.3-llm-baseline` prompt enables **exploratory Luna-only triage** for fictional adult cases. It can return ESI 1–5 using the model’s pretrained understanding, or Needs review when the reported information does not support an estimate. Reviewed study criteria are still pending: these runs are development demonstrations, not the paper’s final baseline evaluation. Older prompts and saved outcomes remain unchanged. Each new screening records its classification mode, prompt and criteria status.
 
 ## What is included
 
@@ -98,10 +98,12 @@ The new migrations add conversations and their links to screening records. They 
 
 ## Use the patient and staff sides
 
-1. Open the patient chatbot at `/`, confirm a fictional adult case, and choose the response language. Intake questions currently use English; submitted answers keep their original language.
-2. Start a conversation to receive a stub such as `TF-000001`. Reply to each study question or select **Unknown / skip**. Each answer is saved before continuing.
-3. Review the conversation, confirm the excluded-data boundaries and submit for screening. The guided intake uses no API calls; the final screening uses the server-side OpenAI integration.
+1. Open the patient chatbot at `/`, confirm a fictional adult case, and choose English, Bisaya or Tagalog. Questions, controls and patient messages follow that language. Submitted answers can use any language variant or mix and keep their original wording.
+2. Start a conversation to receive a stub such as `TF-000001`. Describe the concern naturally: one reply can fill several of the 15 dataset fields. The bot skips captured details and groups related missing information. Vague answers get one targeted clarification. Skipping retains any partial answer; unavailable information stays unknown.
+3. Expand **Review or correct your details**, check the captured answers, confirm the excluded-data boundaries and submit for screening. Each typed reply uses one server-side OpenAI call to understand the reply and write the next question. Starting and skipping use no API calls. Final screening is a separate request. Failed intake calls keep the question and draft available for retry.
 4. Staff sign in at `/admin`, select **Patients & chats**, search the stub and open its complete history. **Full triage record** links to the original response and technical metadata.
+
+Existing conversations started before the conversational update finish with their original guided flow. Start a new conversation to try the new questions.
 
 The same browser resumes its current conversation while its session remains valid (120 minutes of inactivity by default). Refreshing does not allocate a new stub. Ending a conversation, clearing cookies, staff sign-out in the same browser, or session expiry removes patient access; staff retain the saved record. A stub is a record reference, not a login credential or queue position. For a shared demo device, end the current conversation before the next fictional patient.
 
@@ -158,6 +160,7 @@ Open http://127.0.0.1:8000. For hot reloading, run `npm run dev` in a second ter
 | `app/Services/OpenAI/OpenAIClient.php` | Server-only Responses API call |
 | `app/Services/TriageRules/` | Small interface for future approved rules |
 | `resources/prompts/` | Versioned provisional prompt |
+| `resources/chat/` | English, Bisaya and Tagalog question, follow-up and interface translations |
 | `resources/js/Pages/Patient/` | Patient chatbot |
 | `resources/js/Pages/Admin/Patients/` | Staff patient list and full conversation |
 | `resources/js/Pages/Screenings/` | Research intake, screening history and technical details |
@@ -168,9 +171,17 @@ Open http://127.0.0.1:8000. For hot reloading, run `npm run dev` in a second ter
 
 ## Edit the prompt or add approved rules
 
-Create a new versioned prompt file in `resources/prompts/` and update `prompt_version` in `config/triage.php`. Existing sessions retain the prompt text and settings that created them. The current output schema is in `ScreeningOutput.php`.
+Create a new versioned prompt file in `resources/prompts/` and update `prompt_version` for the structured research intake or `patient_prompt_version` for the patient chatbot in `config/triage.php`. Existing sessions retain the prompt text and settings that created them. The final screening schema is in `ScreeningOutput.php`. Conversational extraction and question wording use `intake-v1-conversational.txt` and `IntakeInterpreter`; question groups and repeat limits live in `ConversationalInterview`. Changing intake also changes the study input collection process, so freeze it before evaluation.
 
-Approved future rules belong behind `RuleLayer` in `app/Services/TriageRules/`. `PendingRuleLayer` returns `not_implemented` and no priority. It does not copy Method A. Future work must persist a separate rule version, supporting facts and trace while keeping Method A unchanged. Supply the same reviewed criteria to both methods before evaluation.
+`RuleLayer` is bound to `EsiV4RuleLayer` in `app/Services/TriageRules/`. New screenings pass the same accepted LLM-extracted facts to Method B and save a separate result, input snapshot, rule version and audit trace. Method A's response and priority remain unchanged. The engine makes no provider request and does not accept Method A's priority as a decision or fallback. Historical records remain unevaluated by this layer.
+
+The engine follows the [official ESI v4 A–D order](https://www.ahrq.gov/sites/default/files/publications2/files/esitriagealgorithm-v4_0.pdf). The [AHRQ v4 handbook](https://www.govinfo.gov/content/pkg/GOVPUB-HE20_6500-PURL-gpo23161/pdf/GOVPUB-HE20_6500-PURL-gpo23161.pdf) supplies the interpretation of resource estimates, acute mental-status changes, pain assessment and measured vital signs. No MTS criteria are used. Danger-zone adult vitals flag clinical judgment without assigning ESI 2. Pain scores alone do not assign ESI 2.
+
+Clinical approvals belong in `config/esi.php`, keyed by the IDs in `EsiV4RuleCatalog`. Each approval requires `status`, `reviewer`, `reviewed_at` (YYYY-MM-DD), `record_id` and the matching `rule_version`. No approvals have been supplied, so all clinical rules remain pending.
+
+**The study deliberately excludes vital signs and professional assessment findings. Collecting them is not a remaining implementation task.** Manuscript sections 1.5, 3.5 and 3.11 require preliminary ESI-based decisions supported by permitted patient-reported facts. Clinical review must define which rules and levels those facts can support; excluded information must not be guessed or replaced with invented symptom thresholds. Standard ESI v4 Decision D cannot be completed within this input scope, and skipping it does not establish ESI 3.
+
+The current engine implements the standard decision order, but its optional clinical-assessment argument is outside the study input contract and is not connected to patient endpoints. The mappings from permitted reports to reviewed screening criteria are still unimplemented. Consequently, current Method B outputs require review, often at A before reaching D. Final study development needs a reviewed rule specification for the allowed inputs, followed by implementation and validation of that specification. Both methods must receive the same permitted case information and reviewed criteria for the final comparison. This is not yet a complete implementation of the paper's classification procedure.
 
 ## Troubleshooting
 
@@ -192,4 +203,4 @@ Approved future rules belong behind `RuleLayer` in `app/Services/TriageRules/`. 
 
 ## Verification and pending work
 
-See [docs/verification.md](docs/verification.md) for executed checks and their limits. API transport was tested with mocks; no paid batch or live API request was made. Clinical criteria, clinical validation, reviewed multilingual cases, Method B rules and final evaluation remain pending. No thesis dataset was imported, manuscript edited or application deployed.
+See [docs/verification.md](docs/verification.md) for previous executed checks and their limits. Automated tests use mocked API responses and in-memory SQLite. Small fictional browser checks use the configured live API; no dataset batch was run. Clinical approval of criteria, clinical validation, reviewed multilingual cases and final evaluation remain pending. Rule tests use explicitly fictional assessment and approval fixtures to check software behavior. No thesis dataset was imported, manuscript edited or application deployed.

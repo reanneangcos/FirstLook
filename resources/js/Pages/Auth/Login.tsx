@@ -26,7 +26,7 @@ export default function Login() {
                         <div />
                         <span>B</span>
                     </div>
-                    <small>ONE SAVED RESPONSE · TWO METHODS</small>
+                    <small>SAME CASE · TWO METHODS</small>
                 </div>
                 <p className="login-caption">
                     <FlaskConical size={17} /> Synthetic cases only · Clinical review pending

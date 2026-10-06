@@ -1,12 +1,5 @@
 import { Link } from '@inertiajs/react';
-import {
-    ArrowLeft,
-    CircleAlert,
-    FileJson,
-    LockKeyhole,
-    MessageSquareText,
-    UserRound,
-} from 'lucide-react';
+import { ArrowLeft, CircleAlert, FileJson, MessageSquareText, UserRound } from 'lucide-react';
 import Layout, { PageHeading } from '../../Components/Layout';
 import { formatDate, label, StatusBadge } from '../../Components/SessionList';
 import type { Session } from '../../types';
@@ -82,7 +75,13 @@ export default function Show({ screening: s }: { screening: Session }) {
                             </span>
                             <div>
                                 <div className="chat-label">
-                                    Method A <span>Pretrained LLM · provisional</span>
+                                    Method A{' '}
+                                    <span>
+                                        {s.request_settings.classification_mode ===
+                                        'exploratory_llm_only'
+                                            ? 'Luna only · exploratory'
+                                            : 'Pretrained LLM · provisional'}
+                                    </span>
                                 </div>
                                 <div className="chat-bubble">
                                     {s.parsed_output ? (
@@ -176,8 +175,8 @@ export default function Show({ screening: s }: { screening: Session }) {
                     <section className="panel details-section">
                         <h2>Technical record</h2>
                         <p className="section-description">
-                            The accepted original output is retained before any future rule
-                            processing.
+                            The accepted original output is retained before Method B applies its
+                            rules.
                         </p>
                         <dl className="fact-grid">
                             <div>
@@ -188,6 +187,15 @@ export default function Show({ screening: s }: { screening: Session }) {
                                 <dt>Prompt version</dt>
                                 <dd>{s.prompt_version}</dd>
                             </div>
+                            {s.request_settings.classification_mode === 'exploratory_llm_only' && (
+                                <div>
+                                    <dt>Classification mode</dt>
+                                    <dd>
+                                        Exploratory LLM-only prediction · Study criteria pending
+                                        clinical review
+                                    </dd>
+                                </div>
+                            )}
                             <div>
                                 <dt>Requested model</dt>
                                 <dd>{s.requested_model || 'Not configured'}</dd>
@@ -264,17 +272,56 @@ export default function Show({ screening: s }: { screening: Session }) {
                 <aside className="detail-aside">
                     <section className="panel guidance-card">
                         <span className="method-letter muted">B</span>
-                        <h2>Future rule layer</h2>
-                        <span className="status-badge not_implemented">
-                            <LockKeyhole size={13} /> Not implemented
+                        <h2>Method B · ESI v4 rules</h2>
+                        <span className={`status-badge ${s.method_b_status}`}>
+                            {s.method_b_priority != null
+                                ? `ESI ${s.method_b_priority}`
+                                : label(s.method_b_status)}
                         </span>
                         <p>
-                            Approved rules will consume this same saved response. No second LLM
-                            request is used for Method B.
+                            {s.method_b_result?.explanation ||
+                                'No rule evaluation is saved for this screening.'}
                         </p>
+                        {s.method_b_result && (
+                            <>
+                                <p>
+                                    Rule version: {s.method_b_rule_version}
+                                    {s.method_b_result.stopped_at &&
+                                        ` · Stopped at ${s.method_b_result.stopped_at}`}
+                                </p>
+                                <p>
+                                    Matched rules:{' '}
+                                    {s.method_b_result.matched_rule_ids.join(', ') || 'None'}
+                                </p>
+                                {s.method_b_result.trace.map((entry) => (
+                                    <details key={entry.rule_id}>
+                                        <summary>
+                                            {entry.rule_id} · {label(entry.outcome)}
+                                        </summary>
+                                        <p>{entry.condition}</p>
+                                        <p>
+                                            Clinical approval:{' '}
+                                            {entry.approved
+                                                ? `Approved by ${entry.reviewer_approval.reviewer}`
+                                                : 'Pending or incomplete'}
+                                        </p>
+                                        <p>Required: {entry.required_fields.join(', ')}</p>
+                                        <JsonBlock value={entry} />
+                                    </details>
+                                ))}
+                                <details>
+                                    <summary>Saved rule input</summary>
+                                    <JsonBlock value={s.method_b_input} />
+                                </details>
+                            </>
+                        )}
                         <div className="inline-note">
                             <CircleAlert size={18} />
-                            <p>No hybrid prediction, priority or rule trace has been generated.</p>
+                            <p>
+                                Preliminary decision support. Clinical criteria require reviewer
+                                approval. Patient-reported text alone does not provide all inputs
+                                needed for the complete ESI algorithm.
+                            </p>
                         </div>
                     </section>
                     <section className="detail-note">

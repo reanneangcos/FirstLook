@@ -4,26 +4,47 @@ import { useEffect, useRef, useState } from 'react';
 import { Brand } from '../../Components/Layout';
 import PatientWelcome from '../../Components/PatientWelcome';
 import ChatTranscript from '../../Components/ChatTranscript';
+import PatientAnswerReview from '../../Components/PatientAnswerReview';
 import type { PatientChatVisit } from '../../types';
+import { interpolate, patientChatCopy } from '../../patientLanguage';
 
 export default function Chat({
     visit,
     question,
     languages,
     questionCount,
+    review,
 }: {
     visit: PatientChatVisit | null;
-    question: { field: string; text: string } | null;
+    question: { field: string; text: string; revision: number; follow_up: boolean } | null;
     languages: string[];
     questionCount: number;
+    review: Record<string, string | number | null> | null;
 }) {
     const answer = useForm({ message: '' });
-    const screening = useForm({ scope_confirmed: false });
+    const screening = useForm({ scope_confirmed: false, patient: {} as Record<string, string> });
     const [ending, setEnding] = useState(false);
     const [confirmEnd, setConfirmEnd] = useState(false);
+    const [selectedLanguage, setSelectedLanguage] = useState('English');
+    const language = visit?.language ?? selectedLanguage;
+    const content = patientChatCopy(language);
+    const copy = content.ui;
     const endRef = useRef<HTMLDivElement>(null);
     const replyRef = useRef<HTMLTextAreaElement>(null);
     const poll = usePoll(5000, { only: ['visit', 'question'] }, { autoStart: false });
+    useEffect(() => {
+        if (review) {
+            screening.setData(
+                'patient',
+                Object.fromEntries(
+                    Object.entries(review).map(([field, value]) => [
+                        field,
+                        value === null ? '' : String(value),
+                    ]),
+                ),
+            );
+        }
+    }, [visit?.status, visit?.stub_number]);
     useEffect(() => {
         if (visit?.status === 'screening') {
             poll.start();
@@ -39,7 +60,12 @@ export default function Chat({
     }, [visit?.messages.length]);
     function send(skip: boolean) {
         if (!question || answer.processing) return;
-        answer.transform((data) => ({ ...data, field: question.field, skip }));
+        answer.transform((data) => ({
+            ...data,
+            field: question.field,
+            question_revision: question.revision,
+            skip,
+        }));
         answer.post('/patient/messages', {
             preserveScroll: true,
             onSuccess: () => {
@@ -49,25 +75,29 @@ export default function Chat({
         });
     }
     return (
-        <div className="patient-shell">
-            <Head title="Patient chatbot" />
+        <div className="patient-shell" lang={content.locale}>
+            <Head title={copy.title} />
             <a className="skip-link" href="#patient-main">
-                Skip to conversation
+                {copy.skipLink}
             </a>
             <header className="patient-header">
-                <Brand href="/" subtitle="PATIENT CHATBOT" />
+                <Brand href="/" subtitle={copy.title} />
                 <Link href="/admin" className="staff-entry">
-                    <ShieldCheck size={16} /> Staff sign in <ArrowRight size={15} />
+                    <ShieldCheck size={16} /> {copy.staffSignIn} <ArrowRight size={15} />
                 </Link>
             </header>
             <main id="patient-main" className="patient-main">
                 {!visit ? (
-                    <PatientWelcome languages={languages} />
+                    <PatientWelcome
+                        languages={languages}
+                        language={selectedLanguage}
+                        onLanguageChange={setSelectedLanguage}
+                    />
                 ) : (
                     <section className="patient-chat panel">
                         <div className="chat-topline">
                             <div>
-                                <span className="eyebrow">YOUR CONVERSATION</span>
+                                <span className="eyebrow">{copy.conversation}</span>
                                 <h1>
                                     <Ticket size={22} /> {visit.stub_number}
                                 </h1>
@@ -77,16 +107,27 @@ export default function Chat({
                         <div className="chat-progress">
                             <span>
                                 {visit.status === 'collecting'
-                                    ? `Question ${visit.question_index + 1} of ${questionCount}`
+                                    ? interpolate(
+                                          visit.conversational
+                                              ? copy.coveredProgress
+                                              : copy.topicProgress,
+                                          {
+                                              current:
+                                                  visit.question_index +
+                                                  (visit.conversational ? 0 : 1),
+                                              total: questionCount,
+                                          },
+                                      )
                                     : visit.status === 'ready'
-                                      ? 'Ready to submit'
+                                      ? copy.ready
                                       : visit.status === 'screening'
-                                        ? 'Screening in progress'
-                                        : 'Saved for staff review'}
+                                        ? copy.screening
+                                        : copy.saved}
+                                {question?.follow_up && ` · ${copy.followUp}`}
                             </span>
-                            <span>Saved in this browser session</span>
+                            <span>{copy.browserSession}</span>
                         </div>
-                        <ChatTranscript messages={visit.messages} />
+                        <ChatTranscript messages={visit.messages} language={language} />
                         <div ref={endRef} />
                         {question && (
                             <form
@@ -96,7 +137,7 @@ export default function Chat({
                                     send(false);
                                 }}
                             >
-                                <label htmlFor="patient-reply">Your reply</label>
+                                <label htmlFor="patient-reply">{copy.reply}</label>
                                 <div className="composer-input">
                                     <textarea
                                         ref={replyRef}
@@ -107,11 +148,15 @@ export default function Chat({
                                         }
                                         maxLength={3000}
                                         rows={3}
-                                        inputMode={question.field === 'age' ? 'numeric' : 'text'}
+                                        inputMode={
+                                            !visit.conversational && question.field === 'age'
+                                                ? 'numeric'
+                                                : 'text'
+                                        }
                                         placeholder={
-                                            question.field === 'age'
-                                                ? 'Age in years…'
-                                                : 'Write in your own words…'
+                                            !visit.conversational && question.field === 'age'
+                                                ? copy.agePlaceholder
+                                                : copy.replyPlaceholder
                                         }
                                         disabled={answer.processing}
                                         aria-describedby={
@@ -120,7 +165,7 @@ export default function Chat({
                                     />
                                     <button
                                         className="button primary"
-                                        aria-label="Send reply"
+                                        aria-label={copy.send}
                                         disabled={answer.processing || !answer.data.message.trim()}
                                     >
                                         {answer.processing ? (
@@ -135,6 +180,11 @@ export default function Chat({
                                         {answer.errors.message}
                                     </p>
                                 )}
+                                {answer.processing && (
+                                    <p className="chat-help" role="status">
+                                        {copy.reading}
+                                    </p>
+                                )}
                                 <div className="composer-footer">
                                     <button
                                         type="button"
@@ -142,11 +192,9 @@ export default function Chat({
                                         onClick={() => send(true)}
                                         disabled={answer.processing}
                                     >
-                                        Unknown / skip
+                                        {question.follow_up ? copy.skipFollowUp : copy.skip}
                                     </button>
-                                    <small>
-                                        No test results, measured vital signs or identifiers.
-                                    </small>
+                                    <small>{copy.inputHelp}</small>
                                 </div>
                             </form>
                         )}
@@ -155,9 +203,37 @@ export default function Chat({
                                 className="chat-composer"
                                 onSubmit={(event) => {
                                     event.preventDefault();
+                                    screening.transform((data) => ({
+                                        scope_confirmed: data.scope_confirmed,
+                                        ...(review
+                                            ? {
+                                                  patient: Object.fromEntries(
+                                                      Object.entries(data.patient).map(
+                                                          ([field, value]) => [
+                                                              field,
+                                                              value.trim() === '' ? null : value,
+                                                          ],
+                                                      ),
+                                                  ),
+                                              }
+                                            : {}),
+                                    }));
                                     screening.post('/patient/screen', { preserveScroll: true });
                                 }}
                             >
+                                {review && (
+                                    <PatientAnswerReview
+                                        language={language}
+                                        answers={screening.data.patient}
+                                        onChange={(field, value) =>
+                                            screening.setData('patient', {
+                                                ...screening.data.patient,
+                                                [field]: value,
+                                            })
+                                        }
+                                        disabled={screening.processing}
+                                    />
+                                )}
                                 <label className="chat-check">
                                     <input
                                         type="checkbox"
@@ -169,29 +245,24 @@ export default function Chat({
                                             )
                                         }
                                     />
-                                    I reviewed this fictional case. It contains no identifiers,
-                                    measured vital signs, examination findings, test results or
-                                    answer-key labels.
+                                    {copy.reviewConfirmation}
                                 </label>
-                                {screening.errors.scope_confirmed && (
-                                    <p className="chat-error" role="alert">
-                                        {screening.errors.scope_confirmed}
+                                {Object.values(screening.errors).map((error, index) => (
+                                    <p key={index} className="chat-error" role="alert">
+                                        {error}
                                     </p>
-                                )}
+                                ))}
                                 <button className="button primary" disabled={screening.processing}>
                                     {screening.processing ? (
                                         <LoaderCircle size={18} className="animate-spin" />
                                     ) : (
                                         <Check size={18} />
                                     )}
-                                    {screening.processing
-                                        ? 'Preparing the screening…'
-                                        : 'Submit for screening'}
+                                    {screening.processing ? copy.preparing : copy.submit}
                                 </button>
                                 {screening.processing && (
                                     <p className="chat-help" role="status">
-                                        Your answers are saved. This can take up to 95 seconds;
-                                        please keep this tab open.
+                                        {copy.wait}
                                     </p>
                                 )}
                             </form>
@@ -199,24 +270,25 @@ export default function Chat({
                         {visit.status === 'screening' && (
                             <div className="chat-composer" role="status">
                                 <LoaderCircle className="animate-spin" size={20} />
-                                <p>
-                                    Your screening is being processed. This page checks for the
-                                    saved result automatically. If processing remains unfinished,
-                                    staff can inspect your stub.
-                                </p>
+                                <p>{copy.processing}</p>
                             </div>
                         )}
                         <div className="chat-end">
                             {confirmEnd ? (
                                 <div>
                                     <p>
-                                        End this browser’s access to {visit.stub_number}? Staff will
-                                        keep its saved history. A new conversation receives a new
-                                        stub.
+                                        {interpolate(copy.endConfirmation, {
+                                            stub: visit.stub_number,
+                                        })}
                                     </p>
                                     <button
                                         className="button secondary compact"
-                                        disabled={ending}
+                                        disabled={
+                                            ending ||
+                                            answer.processing ||
+                                            screening.processing ||
+                                            visit.status === 'screening'
+                                        }
                                         onClick={() => {
                                             setEnding(true);
                                             router.post(
@@ -233,30 +305,33 @@ export default function Chat({
                                             );
                                         }}
                                     >
-                                        End conversation
+                                        {copy.end}
                                     </button>
                                     <button
                                         className="text-link"
                                         onClick={() => setConfirmEnd(false)}
                                     >
-                                        Keep chatting
+                                        {copy.keepChatting}
                                     </button>
                                 </div>
                             ) : (
                                 <button
                                     className="text-link"
-                                    disabled={screening.processing || visit.status === 'screening'}
+                                    disabled={
+                                        answer.processing ||
+                                        screening.processing ||
+                                        visit.status === 'screening'
+                                    }
                                     onClick={() => setConfirmEnd(true)}
                                 >
-                                    End this conversation / start a new case
+                                    {copy.newCase}
                                 </button>
                             )}
                         </div>
                     </section>
                 )}
                 <p className="patient-disclaimer">
-                    <ShieldCheck size={15} /> Fictional-case thesis demo · Preliminary screening
-                    only · Clinical review pending
+                    <ShieldCheck size={15} /> {copy.disclaimer}
                 </p>
             </main>
         </div>

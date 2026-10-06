@@ -12,6 +12,25 @@ final class PatientFields
         'tests_completed', 'tests_requested', 'medical_devices',
     ];
 
+    /** Patient columns B:P in each TRAIN tab of Thesis Master Data (5).xlsx. */
+    public const DATASET_COLUMNS = [
+        'age' => 'Age',
+        'reported_sex' => 'Sex reported',
+        'main_complaint' => 'Main complaint',
+        'symptom_description' => 'Symptom description',
+        'other_symptoms' => 'Other reported symptoms',
+        'known_conditions' => 'Known conditions',
+        'allergies' => 'Known allergies',
+        'maintenance_medications' => 'Maintenance medications',
+        'onset' => 'Onset',
+        'duration' => 'Duration',
+        'reported_severity' => 'Severity reported',
+        'worsening' => 'Getting worse?',
+        'tests_completed' => 'Tests already completed',
+        'tests_requested' => 'Tests requested by a clinician',
+        'medical_devices' => 'Medical devices or catheters',
+    ];
+
     public static function only(array $input): array
     {
         $patient = [];

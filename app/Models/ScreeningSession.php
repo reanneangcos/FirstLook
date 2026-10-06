@@ -21,6 +21,7 @@ class ScreeningSession extends Model
             'request_settings' => 'array', 'parsed_output' => 'array',
             'token_usage' => 'array', 'completed_at' => 'datetime',
             'is_fixture' => 'boolean', 'method_a_priority' => 'integer',
+            'method_b_priority' => 'integer', 'method_b_input' => 'array', 'method_b_result' => 'array',
         ];
     }
 

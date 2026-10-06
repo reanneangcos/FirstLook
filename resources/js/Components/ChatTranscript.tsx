@@ -1,12 +1,20 @@
 import { Bot, UserRound } from 'lucide-react';
 import type { ChatMessage } from '../types';
+import { patientChatCopy } from '../patientLanguage';
 
-export default function ChatTranscript({ messages }: { messages: ChatMessage[] }) {
+export default function ChatTranscript({
+    messages,
+    language = 'English',
+}: {
+    messages: ChatMessage[];
+    language?: string;
+}) {
+    const copy = patientChatCopy(language).ui;
     return (
         <div
             className="chat-transcript"
             role="log"
-            aria-label="Conversation"
+            aria-label={copy.transcript}
             aria-live="polite"
             aria-relevant="additions"
         >
@@ -18,10 +26,12 @@ export default function ChatTranscript({ messages }: { messages: ChatMessage[] }
                     <div className="transcript-body">
                         <div className="transcript-label">
                             {message.role === 'patient'
-                                ? 'Patient'
+                                ? copy.patient
                                 : message.source === 'model'
-                                  ? 'TriageFlow · AI screening'
-                                  : 'TriageFlow · intake guide'}
+                                  ? copy.model
+                                  : message.source === 'intake'
+                                    ? copy.intake
+                                    : copy.guide}
                         </div>
                         <p>{message.content}</p>
                     </div>

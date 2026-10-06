@@ -1,8 +1,34 @@
 # Verification record
 
-Completed October 3, 2026 (Asia/Manila). All screening API responses used for automated verification were mocked. No paid batch or live OpenAI request was made.
+Updated October 6, 2026 (Asia/Manila). Automated API tests use mocked responses and in-memory SQLite. Small live fictional browser checks are recorded below; no dataset batch was run. The original October 3 checks are retained as historical verification.
 
-## Automated checks
+## ESI v4 rule layer — October 6
+
+- Connected the deterministic A–D engine to new screenings using the same accepted extracted facts. Method A and original response bytes remain unchanged. Historical screenings are not reprocessed.
+- Focused rule, integration, screening, patient chat, localization and conversational-intake suite: **111 tests, 1,991 assertions passed**. Tests cover all five ESI branches with fictional explicit assessments, strict adult vital-sign boundaries, review flags, missing/unknown/not-applicable/contradictory values, pending approvals, provenance validation, revision changes and independent persistence of both methods.
+- Clinical approval and assessment fixtures exist only in tests. Production approvals remain empty. The current chat collects no clinical assessments, resource estimates or measured vitals, so Method B returns Needs review for unsupported decisions. Tests verify software behavior, not clinical validity.
+- The additive Method B migration was applied to the local Docker database. No existing predictions or conversations were replaced, and no live OpenAI call or dataset evaluation was needed for this change.
+
+## Exploratory LLM-only classification — October 6
+
+- Activated `screening-v0.3-llm-baseline` for patient and structured research submissions. Historical v0.1/v0.2 prompt files and previously saved outcomes remain unchanged.
+- New records retain `classification_mode=exploratory_llm_only` and `criteria_status=pending_clinical_review`. Patient results identify the exploratory mode in English, Bisaya or Tagalog; staff records retain the mode with the original response.
+- Screening, patient chat, localization, conversational intake, schema and translation tests passed (108 tests across the focused files). The new historical-record test initially selected the older record when timestamps tied; its lookup was corrected and the screening test file passed again. PHP formatting, TypeScript checking and Vite production build passed.
+- Classification and Needs-review handling were checked with mocked provider responses, including retaining the original priority and keeping Method B unimplemented. These checks verify application behavior, not clinical accuracy.
+- Live patient case **TF-000008**, explicitly labeled a fictional software test, completed intake and returned **ESI 2** from the configured API. The patient chat displayed the priority, explanation and exploratory-mode label. No expected priority or answer key was supplied in the case. This confirms the classification path works; it does not validate that prediction clinically.
+
+## Conversational intake — October 4
+
+- Focused Docker suite: **88 tests, 2,357 assertions passed**, covering conversational intake, legacy patient chats, localization, final screening and dataset question mappings.
+- TypeScript check, Vite production build, Laravel Pint and `git diff --check` passed. The additive migration for interview state/message metadata was applied without replacing existing records.
+- Live Bisaya browser case **TF-000006**: one mixed-language reply covered 12 dataset fields; the next question asked only for the missing medication name. A second reply supplied that name and the remaining test/device details. The bot did not repeat age, complaint, timing or severity questions.
+- An initial live request failed; the question and draft remained available. A manual retry succeeded. Sanitized intake failure codes are now logged without the reply, credentials or raw provider errors.
+- Review exposed a shortened negative excerpt that had lost its negation. The prompt now requests complete negative clauses, and the application retains the original containing sentence for absent/not-applicable facts. A regression test reproduces that exact Bisaya example. The review panel uses multiline fields.
+- The live case was reviewed and corrected before submission. Final screening succeeded and displayed a Bisaya Needs-review explanation, as required by the provisional screening prompt. The original replies remain in the transcript alongside a correction audit record.
+- Staff sign-in and the saved history for TF-000006 were checked in the browser. The reported-information panel showed the corrected age (35), the restored negative wording and all 15 fields, alongside the original conversation and linked screening.
+- Intake output contains facts and a next-question proposal, with no triage decision field. Method B remains unimplemented; its future rule interface accepts understanding-only facts and excludes Method A’s result.
+
+## Original automated checks — October 3
 
 | Check | Result |
 | --- | --- |
@@ -42,8 +68,8 @@ Checked sign-in, dashboard counts, intake labels and confirmation errors, submis
 
 ## Limits and pending work
 
-- No live connectivity or API-account model access was verified. The public model identifier and Structured Outputs support were checked against official OpenAI documentation; see [versions](versions.md).
-- The provisional prompt requests Needs review until approved clinical criteria are supplied. Mocked classification tests validate storage and the response contract, not clinical decisions.
+- Small fictional live checks confirmed API access for those requests on October 4. They do not establish dataset performance or clinical validity. Model information is recorded in [versions](versions.md).
+- Exploratory classification now uses pretrained model knowledge. Final study evaluation still requires reviewed classification criteria shared by both methods. Mocked tests validate storage and the response contract, not clinical decisions.
 - Method B contains only a small interface and an explicit unimplemented result. Reviewed rules, rule traces and a clinical validation process remain future work.
 - No final dataset was imported, split, evaluated or used for performance claims. The planned 150 canonical cases and their variants remain outside setup.
 - Narrative exclusions require researcher review. Quotation validation does not establish clinical accuracy, prevent every diagnosis in generated prose, or prove resistance to prompt injection.
@@ -54,7 +80,7 @@ Checked sign-in, dashboard counts, intake labels and confirmation errors, submis
 
 Added feature coverage for public chat entry, unique automatic stubs, same-session recovery, unknown answers, adult validation, stale/duplicate answers, completed-chat screening, duplicate-submission prevention, patient isolation, protected staff access, stub search, transcript links, ending browser access without deleting records, and hiding staff settings from patient pages. Rate-limit counters for intake replies and screening submissions are separate.
 
-The API still runs only at final screening submission. Guided intake replies do not incur model calls. No live API call was made for this extension. Existing model validation/retry tests remain in the suite.
+At the time of the original extension, the API ran only at final screening submission. The October 4 conversational update adds one API attempt per typed intake reply; starting and skipping remain local. Existing final screening validation/retry tests remain in the suite.
 
 The patient browser walkthrough completed all 15 questions, saved the missing-configuration outcome, and recovered the same completed stub after a reload. The 390-pixel mobile chat had no whole-page horizontal overflow.
 

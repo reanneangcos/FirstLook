@@ -15,7 +15,7 @@ class PatientVisit extends Model
 
     protected function casts(): array
     {
-        return ['answers' => 'array', 'question_index' => 'integer', 'scope_confirmed_at' => 'datetime'];
+        return ['answers' => 'array', 'interview_state' => 'array', 'question_index' => 'integer', 'scope_confirmed_at' => 'datetime'];
     }
 
     public function messages(): HasMany

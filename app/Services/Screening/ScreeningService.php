@@ -4,18 +4,25 @@ namespace App\Services\Screening;
 
 use App\Models\ScreeningSession;
 use App\Services\OpenAI\OpenAIClient;
+use App\Services\TriageRules\RuleLayer;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ScreeningService
 {
-    public function __construct(private OpenAIClient $client, private ScreeningOutput $output) {}
+    public function __construct(private OpenAIClient $client, private ScreeningOutput $output, private RuleLayer $rules) {}
 
     public function screen(array $data, ?int $userId, ?int $patientVisitId = null): ScreeningSession
     {
         $patient = PatientFields::only($data['patient']);
-        $prompt = file_get_contents(resource_path('prompts/'.config('triage.prompt_version').'.txt'));
+        $promptVersion = config($patientVisitId === null ? 'triage.prompt_version' : 'triage.patient_prompt_version');
+        $responseLanguage = $patientVisitId === null ? null
+            : (array_key_exists($data['language'], PatientChatContent::LOCALES) ? $data['language'] : 'English');
+        $prompt = file_get_contents(resource_path('prompts/'.$promptVersion.'.txt'));
+        $prompt = str_replace('{{response_language}}', $responseLanguage ?? 'English', $prompt);
         $settings = [
             'model' => config('triage.model'), 'store' => false,
             'reasoning' => ['effort' => config('triage.reasoning_effort')],
@@ -31,9 +38,13 @@ class ScreeningService
             'original_input' => Arr::only($data['patient'], PatientFields::NAMES),
             'patient_input' => $patient,
             'requested_model' => (string) config('triage.model'),
-            'prompt_version' => config('triage.prompt_version'), 'prompt_text' => $prompt,
+            'prompt_version' => $promptVersion, 'prompt_text' => $prompt,
+            'method_b_status' => 'not_evaluated',
             'request_settings' => $settings + [
                 'schema_version' => config('triage.schema_version'),
+                'classification_mode' => config('triage.classification_mode'),
+                'criteria_status' => 'pending_clinical_review',
+                'response_language' => $responseLanguage,
                 'timeout_seconds' => config('triage.timeout_seconds'),
                 'connect_timeout_seconds' => config('triage.connect_timeout_seconds'),
                 'max_attempts' => min(3, max(1, config('triage.max_attempts'))),
@@ -44,7 +55,7 @@ class ScreeningService
         if (! config('triage.api_key') || ! config('triage.model')) {
             return $this->fail($session, 'configuration_missing', 'Set OPENAI_API_KEY and OPENAI_MODEL in the server environment. No request was sent.', 0);
         }
-        // Dataset identifiers, language labels and answer-key metadata never enter the prompt.
+        /** Dataset metadata stays local. Only patient chat sets a response-language preference. */
         $payload = $settings + ['input' => [
             ['role' => 'system', 'content' => $prompt],
             ['role' => 'user', 'content' => json_encode($patient, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)],
@@ -89,6 +100,8 @@ class ScreeningService
                             ]);
                         });
 
+                        $this->saveRuleResult($session, $parsed['extracted_facts']);
+
                         return $session->fresh();
                     }
                 } else {
@@ -121,6 +134,26 @@ class ScreeningService
     private function elapsed(int $start): int
     {
         return (int) round((hrtime(true) - $start) / 1_000_000);
+    }
+
+    /** @param list<array{field: string, state: string, value: ?string, evidence: ?string}> $facts */
+    private function saveRuleResult(ScreeningSession $session, array $facts): void
+    {
+        /** The patient workflow has no approved clinical-assessment or measured-vitals input. */
+        $session->update(['method_b_input' => ['extracted_facts' => $facts, 'clinical_assessment' => []],
+            'method_b_rule_version' => $this->rules->version()]);
+        try {
+            $result = $this->rules->evaluate($facts);
+            $session->update(['method_b_status' => $result['status'], 'method_b_priority' => $result['priority'],
+                'method_b_rule_version' => $result['rule_version'], 'method_b_result' => $result]);
+        } catch (Throwable $error) {
+            Log::error('Method B evaluation failed.', ['screening_id' => $session->id, 'exception_type' => $error::class]);
+            $session->update(['method_b_status' => 'technical_failure', 'method_b_priority' => null,
+                'method_b_result' => ['status' => 'technical_failure', 'priority' => null,
+                    'rule_version' => $session->method_b_rule_version, 'matched_rule_ids' => [], 'trace' => [],
+                    'flags' => [], 'stopped_at' => null,
+                    'explanation' => 'The rule evaluation could not be completed. Method A remains saved unchanged.']]);
+        }
     }
 
     private function fail(ScreeningSession $session, string $code, string $message, int $latency): ScreeningSession
