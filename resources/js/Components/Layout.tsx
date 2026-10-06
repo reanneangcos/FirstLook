@@ -22,7 +22,7 @@ export function Brand({
     subtitle?: string;
 }) {
     return (
-        <Link href={href} className="brand" aria-label="TriageFlow home">
+        <Link href={href} className="brand" aria-label="FirstLook home">
             <span className="brand-mark">
                 <Activity size={23} strokeWidth={2.2} />
             </span>
@@ -129,7 +129,7 @@ export default function Layout({ title, children }: PropsWithChildren<{ title: s
                         <ShieldCheck size={14} /> Research prototype · Not clinically validated
                     </span>
                     <span>
-                        TriageFlow <span className="footer-version">v0.1</span>
+                        FirstLook <span className="footer-version">v0.1</span>
                     </span>
                 </footer>
             </div>
