@@ -27,7 +27,7 @@ export function Brand({
                 <Activity size={23} strokeWidth={2.2} />
             </span>
             <span>
-                Triage<span className="font-normal">Flow</span>
+                First<span className="font-normal">Look</span>
                 <small>{subtitle}</small>
             </span>
         </Link>
