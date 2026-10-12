@@ -56,9 +56,18 @@ export default function Show({ patient }: { patient: PatientVisit }) {
                         )}
                         <div className="inline-note">
                             <p>
-                                Method B: <strong>Not implemented.</strong> Clinical criteria and
-                                approved rules are pending.
+                                Method B:{' '}
+                                <strong>
+                                    {patient.screening?.method_b_priority != null
+                                        ? `${patient.screening.method_b_result?.output_kind === 'provisional_esi_prediction' ? 'Provisional ' : ''}ESI ${patient.screening.method_b_priority}`
+                                        : label(
+                                              patient.screening?.method_b_status ?? 'not_evaluated',
+                                          )}
+                                </strong>
                             </p>
+                            {patient.screening?.method_b_result?.explanation && (
+                                <p>{patient.screening.method_b_result.explanation}</p>
+                            )}
                         </div>
                     </section>
                     <section className="panel guidance-card">

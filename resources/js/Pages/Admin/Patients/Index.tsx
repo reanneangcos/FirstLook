@@ -47,7 +47,7 @@ export default function Index({
                         </label>
                         <input
                             id="stub-search"
-                            placeholder="Search a stub, e.g. TF-000001"
+                            placeholder="Search a stub, e.g. FL-000001"
                             maxLength={80}
                             value={q}
                             onChange={(event) => setQ(event.target.value)}

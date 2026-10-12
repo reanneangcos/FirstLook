@@ -29,4 +29,27 @@ final class PatientChatContent
 
         return $text;
     }
+
+    public static function voiceGuidance(string $language, bool $forScreening = false, bool $allowLanguageChange = false): string
+    {
+        $language = array_key_exists($language, self::LOCALES) ? $language : 'English';
+        $catalog = self::catalog($language);
+        $template = file_get_contents(resource_path('prompts/'.config('triage.patient_voice_version').'.txt'));
+        if ($allowLanguageChange) {
+            $template = str_replace(
+                'Use the selected language even when',
+                'If the latest reply explicitly requests a supported language change, use language_change.language immediately and apply its voice below. Otherwise use the selected language even when',
+                $template,
+            );
+        }
+        $examples = $forScreening
+            ? ['reviewMessage' => $catalog['conversation']['ready'], 'retryMessage' => $catalog['conversation']['retry']]
+            : ['shortQuestions' => $catalog['shortQuestions'], 'detailQuestions' => $catalog['detailQuestions']];
+
+        return strtr($template, [
+            '{{response_language}}' => $language,
+            '{{message_field}}' => $forScreening ? 'explanation' : 'next_question.text',
+            '{{wording_examples}}' => json_encode($examples, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        ]);
+    }
 }

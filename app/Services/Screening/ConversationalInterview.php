@@ -72,64 +72,94 @@ class ConversationalInterview
             $answers = $visit->answers;
             $state = $visit->interview_state;
             $clarify = array_fill_keys($state['clarify_fields'] ?? [], true);
+            $unresolved = $state['unresolved_answers'] ?? [];
+            $languageChange = $result['language_change'] ?? null;
+            $language = $languageChange['language'] ?? $visit->language;
+            $languageOnly = $languageChange !== null && $result['facts'] === [];
+            $state['version'] = $result['metadata']['intake_version'] ?? $state['version'];
+
+            /** Move partial answers from older active conversations out of accepted input. */
+            foreach (array_keys($clarify) as $field) {
+                if (isset($answers[$field])) {
+                    $unresolved[$field] ??= ['state' => 'reported', 'evidence' => (string) $answers[$field]];
+                }
+                unset($answers[$field]);
+            }
             foreach ($result['facts'] ?? [] as $fact) {
                 $field = $fact['field'];
-                $wasClarifying = isset($clarify[$field]);
-                if (array_key_exists($field, $answers) && ! $fact['replaces_previous'] && ! $wasClarifying) {
+                $value = $fact['state'] === 'unknown' ? null : $fact['evidence'];
+                $needsDetail = $fact['needs_detail'] || $fact['state'] === 'unclear';
+                if (array_key_exists($field, $answers) && ! $fact['replaces_previous'] && ! $needsDetail) {
+                    if ($value !== null && $answers[$field] !== null && (string) $answers[$field] !== $value) {
+                        $unresolved[$field] = ['state' => 'unclear', 'evidence' => $answers[$field]."\n".$value];
+                        unset($answers[$field]);
+                        $clarify[$field] = true;
+                    }
+
                     continue;
                 }
-                $value = $fact['state'] === 'unknown' ? null : $fact['evidence'];
+                if ($needsDetail) {
+                    $unresolved[$field] = ['state' => $fact['state'], 'evidence' => $fact['evidence']];
+                    unset($answers[$field]);
+                    $clarify[$field] = true;
+
+                    continue;
+                }
                 if ($fact['field'] === 'age' && $value !== null) {
                     if ((int) $value < 18) {
-                        throw ValidationException::withMessages(['message' => PatientChatContent::text($visit->language, 'errors', 'adult')]);
+                        throw ValidationException::withMessages(['message' => PatientChatContent::text($language, 'errors', 'adult')]);
                     }
                     $value = (int) $value;
                 }
-                if ($wasClarifying && ! $fact['replaces_previous'] && ($answers[$field] ?? null) !== null) {
-                    if ($value !== null && $value !== $answers[$field]) {
-                        $answers[$field] .= "\n".$value;
-                    }
-                } else {
-                    $answers[$field] = $value;
+                if ($field !== 'age' && $fact['state'] === 'reported' && ! $fact['replaces_previous']
+                    && ($unresolved[$field]['state'] ?? null) === 'reported' && $unresolved[$field]['evidence'] !== $value) {
+                    $value = $unresolved[$field]['evidence']."\n".$value;
                 }
-                if ($fact['needs_detail'] && $fact['state'] === 'reported' && $field !== 'age'
-                    && ($state['asked_count'][$field] ?? 0) < 2) {
-                    $clarify[$field] = true;
-                } else {
-                    unset($clarify[$field]);
-                }
+                $answers[$field] = $value;
+                unset($clarify[$field], $unresolved[$field]);
             }
             foreach ($state['pending_fields'] as $field) {
-                if ($reply === null || $state['asked_count'][$field] >= 2) {
-                    if (! array_key_exists($field, $answers)) {
-                        $answers[$field] = null;
-                    }
-                    unset($clarify[$field]);
+                if ($reply === null) {
+                    $answers[$field] = null;
+                    unset($clarify[$field], $unresolved[$field]);
                 }
             }
             $state['clarify_fields'] = array_keys($clarify);
+            $state['unresolved_answers'] = $unresolved;
             $fields = $this->nextFields($answers, $state['clarify_fields']);
             $proposed = $result['next_question'] ?? null;
-            $useProposed = $fields !== [] && $proposed !== null && $proposed['fields'] === $fields && trim($proposed['text']) !== '';
-            $question = $fields === [] ? PatientChatContent::text($visit->language, 'conversation', 'ready')
-                : ($useProposed ? $proposed['text'] : $this->fallbackQuestion($fields, $visit->language, $state['clarify_fields']));
+            $useProposed = $languageChange === null && $fields !== [] && $proposed !== null && $proposed['fields'] === $fields && trim($proposed['text']) !== '';
+            $question = $fields === [] ? PatientChatContent::text($language, 'conversation', 'ready')
+                : ($useProposed ? $proposed['text'] : $this->fallbackQuestion($fields, $language, $state['clarify_fields']));
+            if ($languageChange !== null) {
+                $question = PatientChatContent::text($language, 'conversation', 'languageChanged').' '.$question;
+            }
             $state['pending_fields'] = $fields;
             foreach ($fields as $field) {
-                $state['asked_count'][$field] = ($state['asked_count'][$field] ?? 0) + 1;
+                if (! $languageOnly) {
+                    $state['asked_count'][$field] = ($state['asked_count'][$field] ?? 0) + 1;
+                }
             }
             $visit->messages()->create(['role' => 'patient', 'source' => 'patient', 'field' => $data['field'],
                 'content' => $reply ?? PatientChatContent::text($visit->language, 'messages', 'unknown'),
                 'metadata' => ['requested_fields' => $visit->interview_state['pending_fields']]]);
             $visit->messages()->create(['role' => 'assistant', 'source' => $useProposed ? 'intake' : 'guide',
                 'field' => $fields[0] ?? null, 'content' => $question, 'metadata' => $result['metadata'] ?? null]);
-            $visit->update(['answers' => $answers, 'interview_state' => $state,
-                'question_index' => count($answers), 'status' => $fields === [] ? 'ready' : 'collecting']);
+            $visit->update(['answers' => $answers, 'interview_state' => $state, 'language' => $language,
+                'question_index' => count(array_filter($answers, fn (mixed $answer): bool => $answer !== null)),
+                'status' => $fields === [] ? 'ready' : 'collecting']);
         });
     }
 
     /** @return list<string> */
     private function nextFields(array $answers, array $clarifyFields): array
     {
+        foreach (self::GROUPS as $group) {
+            $unclear = array_values(array_intersect($group, $clarifyFields));
+            if ($unclear !== []) {
+                return array_slice($unclear, 0, 2);
+            }
+        }
         foreach (self::GROUPS as $group) {
             $missing = array_values(array_filter($group, fn (string $field): bool => ! array_key_exists($field, $answers) || in_array($field, $clarifyFields, true)));
             if ($missing !== []) {

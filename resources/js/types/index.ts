@@ -20,6 +20,9 @@ export type RuleResult = {
     explanation: string;
     flags: string[];
     stopped_at: string | null;
+    output_kind?: 'provisional_esi_prediction';
+    decision_d?: { status: 'not_assessed'; reason: string };
+    design_sources?: Record<string, string>;
     trace: {
         rule_id: string;
         decision_point: string;

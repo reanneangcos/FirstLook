@@ -1,6 +1,37 @@
 # Verification record
 
-Updated October 6, 2026 (Asia/Manila). Automated API tests use mocked responses and in-memory SQLite. Small live fictional browser checks are recorded below; no dataset batch was run. The original October 3 checks are retained as historical verification.
+Updated October 12, 2026 (Asia/Manila). Automated API tests use mocked responses and in-memory SQLite. Earlier live fictional browser checks are retained below; no dataset batch was run.
+
+## FirstLook project rename — October 12
+
+- Updated active app labels, all three chatbot translations, package metadata, the default application name and Docker services to FirstLook. New patient stubs use `FL-`.
+- Created `screening-v0.4-llm-baseline`, `intake-v3-conversational` and `patient-voice-v2-casual` with the new branding. Older prompt files, existing stubs and saved responses remain unchanged. The intake interpreter now reads the configured prompt version.
+- Retained the existing local database and dependency volumes through local environment settings, and preserved the browser session cookie. Verified the existing nurse login and staff dashboard over HTTP after starting the FirstLook containers; the patient page also returned HTTP 200. These checks did not call OpenAI or submit a patient case.
+- Full PHPUnit suite: **253 tests, 4,292 assertions passed**. Laravel Pint, TypeScript checking, Vite production build and `git diff --check` passed. Composer metadata validation passed with the existing warnings about intentionally pinned package versions; dependency versions were unchanged.
+- The project remote is `https://github.com/reanneangcos/FirstLook`. Local environment secrets, accounts and databases are excluded from Git.
+
+## Supplied handbook implementation — October 12
+
+- Inspected the supplied 95-page `Esi_Handbook.pdf`: ESI v4, May 2005, AHRQ 05-0046-2. Visually checked the algorithm, immediate-intervention table and resource table/examples. The catalog now records this edition, its file fingerprint and the correct chapter/page references.
+- Added verified immediate-intervention tokens from Table 3-1 and deterministic counting of an explicitly supplied expected-resource plan from Chapter 5. Neither input is inferred from patient messages, prior/requested tests or existing devices. Unknown service types, incomplete zero/one-resource plans and contradictory assessments require review.
+- Selected `handbook_pre_screening` as the default. Provisional ESI 3 still requires supported negative A/B and at least two expected resources; D remains unassessed. Normal evaluation retains approval checks. The patient workflow still has no approved mapping or assessment source and cannot classify solely because this mode is selected.
+- Expanded the isolated preview to 18 fictional cases. Focused rule, preview, integration and screening regression suite: **138 tests, 729 assertions passed**. Laravel Pint passed. No real API call, database migration, reference-label edit or historical-result rewrite was performed.
+
+## Handbook draft and provisional ESI 3 — October 11
+
+- Added handbook clinical specifications, exclusions and source sections to the catalog. The selectable `handbook_pre_screening` mode returns provisional 3 only after explicit negative A/B assessments and an established estimate of at least two expected resources. Missing or conflicting A/B/C inputs still return Needs Review. The separate clinical mode continues to require Decision D measurements.
+- Added `php artisan esi:preview --no-interaction` and its JSON option. Eleven fictional examples exercise all five candidate levels and unresolved decisions. Preview outputs have null study priority, retain pending approval records and are explicitly ineligible for study scoring. The command makes no provider calls or database writes.
+- Focused unit and feature suite: **105 tests, 633 assertions passed**, covering both engines, preview isolation, application binding, persistence and unchanged Method A results. Laravel Pint and `git diff --check` passed.
+- Generated the four-page `triageflow-handbook-rules-nurse-review.pdf` with the decision diagram, clinical conditions, input limitations, nurse-review questions and final-testing treatment of abstentions. Rendered and visually checked every page.
+- No clinical approvals or patient-report mappings were fabricated or activated. The patient workflow remains on its existing provisional engine with empty mapping configuration; it still abstains where the required decision facts are unavailable. The draft implements the decision procedure, but does not establish patient-symptom mappings or clinical validity.
+
+## Provisional patient-report rule path — October 11
+
+- Added a separate provisional engine and catalog, selected by the current patient workflow. Kept the clinical ESI v4 engine unchanged and explicitly selectable.
+- Full native suite: **185 tests, 3,613 assertions passed**. New checks cover all five provisional levels using fictional approved fixtures, explicit earlier-decision exclusions, missing states, conflict abstention, changed-definition approval invalidation, exact text matching, evidence validation, and independence from Method A's priority.
+- Laravel Pint, TypeScript checking, the Vite production build and `git diff --check` passed. No provider call, clinical mapping activation, dataset evaluation, historical prediction rewrite or database migration was performed.
+- The workbook was confirmed to contain validated labels only. Provisional mappings and approvals remain empty, so current Method B submissions still abstain. Test approvals are software fixtures, not clinical evidence.
+- Updated the working thesis copy and [rule-layer guide](rule-layer-guide.md) to distinguish methodological support from clinical rule approval and to specify pre-testing requirements. Rendered the Word file and visually checked all 40 pages.
 
 ## ESI v4 rule layer — October 6
 
@@ -70,11 +101,11 @@ Checked sign-in, dashboard counts, intake labels and confirmation errors, submis
 
 - Small fictional live checks confirmed API access for those requests on October 4. They do not establish dataset performance or clinical validity. Model information is recorded in [versions](versions.md).
 - Exploratory classification now uses pretrained model knowledge. Final study evaluation still requires reviewed classification criteria shared by both methods. Mocked tests validate storage and the response contract, not clinical decisions.
-- Method B contains only a small interface and an explicit unimplemented result. Reviewed rules, rule traces and a clinical validation process remain future work.
+- Method B now has both provisional and clinical rule engines with evidence traces. Approved patient-report mappings remain pending; see the October 11 verification above.
 - No final dataset was imported, split, evaluated or used for performance claims. The planned 150 canonical cases and their variants remain outside setup.
 - Narrative exclusions require researcher review. Quotation validation does not establish clinical accuracy, prevent every diagnosis in generated prose, or prove resistance to prompt injection.
 - Processing is synchronous. A process interruption may leave a record marked Processing; automatic recovery is not implemented.
-- The manuscript was not edited and the application was not deployed.
+- The revised working manuscript is in `docs/TriageFlow-Thesis-RRL-Revised.docx`. The application was not deployed.
 
 ## Patient and staff extension
 

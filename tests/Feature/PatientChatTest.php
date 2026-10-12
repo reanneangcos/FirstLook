@@ -43,9 +43,9 @@ class PatientChatTest extends TestCase
     {
         $this->get('/')->assertInertia(fn (Assert $page) => $page->component('Patient/Chat')->where('visit', null)->where('integration', null));
         $visit = $this->startChat();
-        $this->assertSame('TF-000001', $visit->stub_number);
+        $this->assertSame('FL-000001', $visit->stub_number);
         $this->assertCount(2, $visit->messages);
-        $this->get('/')->assertInertia(fn (Assert $page) => $page->where('visit.stub_number', 'TF-000001')->where('question.field', 'age')->missing('visit.answers')->missing('visit.screening'));
+        $this->get('/')->assertInertia(fn (Assert $page) => $page->where('visit.stub_number', 'FL-000001')->where('question.field', 'age')->missing('visit.answers')->missing('visit.screening'));
         $this->startChat();
         $this->assertDatabaseCount('patient_visits', 1);
         Http::assertNothingSent();
@@ -159,16 +159,16 @@ class PatientChatTest extends TestCase
 
     public function test_staff_can_search_stubs_and_inspect_transcripts_and_linked_triage(): void
     {
-        $visit = PatientVisit::factory()->create(['stub_number' => 'TF-000123', 'status' => 'completed']);
+        $visit = PatientVisit::factory()->create(['stub_number' => 'FL-000123', 'status' => 'completed']);
         ChatMessage::factory()->create(['patient_visit_id' => $visit->id, 'content' => 'FICTIONAL CASE: itching.']);
         $screening = ScreeningSession::factory()->create(['patient_visit_id' => $visit->id,
             'processing_status' => 'completed', 'method_a_status' => 'needs_review', 'method_a_priority' => null]);
         $this->get('/admin/patients')->assertRedirect('/login');
         $this->actingAs(User::factory()->create());
-        $this->get('/admin/patients?q=000123&status=needs_review')->assertInertia(fn (Assert $page) => $page->component('Admin/Patients/Index')->where('patients.total', 1)->where('patients.data.0.stub_number', 'TF-000123')->missing('patients.data.0.answers')->missing('patients.data.0.screening.original_response'));
+        $this->get('/admin/patients?q=000123&status=needs_review')->assertInertia(fn (Assert $page) => $page->component('Admin/Patients/Index')->where('patients.total', 1)->where('patients.data.0.stub_number', 'FL-000123')->missing('patients.data.0.answers')->missing('patients.data.0.screening.original_response'));
         $this->get('/admin/patients?q=no-match')->assertInertia(fn (Assert $page) => $page->where('patients.total', 0));
         $this->get('/admin/patients/'.$visit->id)->assertInertia(fn (Assert $page) => $page->component('Admin/Patients/Show')->where('patient.messages.0.content', 'FICTIONAL CASE: itching.')->where('patient.screening.id', $screening->id));
-        $this->get('/admin/screenings/'.$screening->id)->assertInertia(fn (Assert $page) => $page->where('screening.patient_visit.stub_number', 'TF-000123'));
+        $this->get('/admin/screenings/'.$screening->id)->assertInertia(fn (Assert $page) => $page->where('screening.patient_visit.stub_number', 'FL-000123'));
     }
 
     public function test_staff_login_redirects_to_the_staff_side_and_patient_props_stay_minimal(): void

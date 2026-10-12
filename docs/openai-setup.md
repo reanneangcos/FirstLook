@@ -4,7 +4,7 @@ This guide is for the local fictional-case thesis demo. The integration is alrea
 
 ## 1. Understand when the API is used
 
-The patient side at **http://localhost:8000/** collects the 15 patient fields from columns B:P of each TRAIN tab through a conversational chat. Questions, follow-ups, controls and patient messages use the selected English, Bisaya or Tagalog language. Each conversation receives a stub such as `TF-000001`.
+The patient side at **http://localhost:8000/** collects the 15 patient fields from columns B:P of each TRAIN tab through a conversational chat. Questions, follow-ups, controls and patient messages use the selected English, Bisaya or Tagalog language. Each conversation receives a stub such as `FL-000001`.
 
 When the patient finishes the questions, confirms the study boundaries and selects **Submit for screening**, Laravel sends the allowed patient answers to OpenAI. It saves the original response and displays the preliminary result in the chat. Staff see the conversation and full triage record at **http://localhost:8000/admin/patients**.
 
@@ -59,7 +59,7 @@ In the staff dashboard, the integration notice should say **API configuration pr
 5. Open **http://localhost:8000/admin/patients** in another tab and sign in with your existing staff account. Search the stub, open its conversation, then select **Full triage record**.
 6. Inspect the returned model, original response, request attempts and token usage. A completed result with an accepted attempt confirms connectivity for that request.
 
-The active `screening-v0.3-llm-baseline` prompt allows **ESI 1–5** as an exploratory Luna-only estimate. Needs review remains appropriate when essential information is missing or contradictory. The model uses its pretrained understanding while reviewed study criteria are pending. Each record is marked `exploratory_llm_only`; these outputs are not the final criteria-controlled comparison described in the paper. Existing saved Needs-review records keep their original result. Start a new fictional case to try the new prompt.
+The active `screening-v0.4-llm-baseline` prompt allows **ESI 1–5** as an exploratory Luna-only estimate. Needs review remains appropriate when essential information is missing or contradictory. The model uses its pretrained understanding while reviewed study criteria are pending. Each record is marked `exploratory_llm_only`; these outputs are not the final criteria-controlled comparison described in the paper. Existing saved Needs-review records keep their original result. Start a new fictional case to try the new prompt.
 
 Each typed reply makes one attempt with no automatic retry. The final screening submission can make up to three bounded provider attempts for connection failures, rate limits, server failures or malformed output. Any actual requests may incur API usage charges. This guide does not run them automatically.
 
@@ -84,7 +84,7 @@ Each typed reply makes one attempt with no automatic retry. The final screening 
 | --- | --- |
 | `.env` | Your private API key and configured model |
 | `config/triage.php` | Prompt version, request limits, model settings and study languages |
-| `resources/prompts/screening-v0.3-llm-baseline.txt` | Active exploratory classification prompt for patient and structured research submissions |
+| `resources/prompts/screening-v0.4-llm-baseline.txt` | Active exploratory classification prompt for patient and structured research submissions |
 | `resources/prompts/screening-v0.1-provisional.txt` and `screening-v0.2-patient-language.txt` | Historical review-only prompts retained for traceability |
 | `resources/chat/{en,ceb,fil}.json` | Shared translations for questions, follow-ups, messages and controls |
 | `app/Services/Screening/PatientFields.php` | Allowed patient fields and their exact TRAIN column names |

@@ -15,8 +15,8 @@ class PatientChatService
     {
         return DB::transaction(function () use ($language): PatientVisit {
             $visit = PatientVisit::create(['language' => $language, 'answers' => [], 'scope_confirmed_at' => now()]);
-            $visit->update(['stub_number' => 'TF-'.str_pad((string) $visit->id, 6, '0', STR_PAD_LEFT)]);
-            if (config('triage.intake_version') === 'intake-v1-conversational') {
+            $visit->update(['stub_number' => 'FL-'.str_pad((string) $visit->id, 6, '0', STR_PAD_LEFT)]);
+            if (in_array(config('triage.intake_version'), ['intake-v1-conversational', 'intake-v2-conversational', 'intake-v3-conversational'], true)) {
                 $this->conversation->initialize($visit);
 
                 return $visit;

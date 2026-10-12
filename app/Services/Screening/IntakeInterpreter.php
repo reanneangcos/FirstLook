@@ -11,14 +11,15 @@ class IntakeInterpreter
 {
     public function __construct(private OpenAIClient $client) {}
 
-    /** @return array{facts: array, next_question: array, metadata: array} */
+    /** @return array{facts: array, next_question: array, language_change: ?array, metadata: array} */
     public function interpret(PatientVisit $visit, string $reply): array
     {
         if (! config('triage.api_key') || ! config('triage.model')) {
             throw new InvalidIntakeResponse('configuration_missing');
         }
-        $version = $visit->interview_state['version'];
+        $version = config('triage.intake_version');
         $prompt = file_get_contents(resource_path('prompts/'.$version.'.txt'));
+        $prompt .= "\n\n".PatientChatContent::voiceGuidance($visit->language, allowLanguageChange: true);
         $settings = ['model' => config('triage.model'), 'store' => false,
             'reasoning' => ['effort' => config('triage.reasoning_effort')],
             'max_output_tokens' => config('triage.intake_max_output_tokens'),
@@ -26,6 +27,7 @@ class IntakeInterpreter
         $context = [
             'response_language' => $visit->language,
             'known_answers' => $visit->answers,
+            'unresolved_answers' => $visit->interview_state['unresolved_answers'] ?? [],
             'pending_fields' => $visit->interview_state['pending_fields'],
             'asked_count' => $visit->interview_state['asked_count'],
             'clarify_fields' => $visit->interview_state['clarify_fields'] ?? [],
@@ -48,18 +50,28 @@ class IntakeInterpreter
         $result = $this->parse(is_array($envelope) ? $envelope : [], $reply);
 
         return $result + ['metadata' => ['intake_version' => $version, 'prompt_text' => $prompt,
-            'request_settings' => $settings, 'response_language' => $visit->language,
+            'patient_voice_version' => config('triage.patient_voice_version'),
+            'request_settings' => $settings, 'previous_language' => $visit->language,
+            'response_language' => $result['language_change']['language'] ?? $visit->language,
+            'language_change' => $result['language_change'],
             'returned_model' => $envelope['model'] ?? null, 'token_usage' => $envelope['usage'] ?? null,
             'original_response' => $response->body(), 'facts' => $result['facts']]];
     }
 
     public function schema(): array
     {
-        return ['type' => 'object', 'additionalProperties' => false, 'required' => ['facts', 'next_question'], 'properties' => [
+        return ['type' => 'object', 'additionalProperties' => false, 'required' => ['facts', 'next_question', 'language_change'], 'properties' => [
+            'language_change' => ['anyOf' => [
+                ['type' => 'null'],
+                ['type' => 'object', 'additionalProperties' => false, 'required' => ['language', 'evidence'], 'properties' => [
+                    'language' => ['type' => 'string', 'enum' => array_keys(PatientChatContent::LOCALES)],
+                    'evidence' => ['type' => 'string'],
+                ]],
+            ]],
             'facts' => ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => false,
                 'required' => ['field', 'state', 'evidence', 'replaces_previous', 'needs_detail'], 'properties' => [
                     'field' => ['type' => 'string', 'enum' => PatientFields::NAMES],
-                    'state' => ['type' => 'string', 'enum' => ['reported', 'absent', 'not_applicable', 'unknown']],
+                    'state' => ['type' => 'string', 'enum' => ['reported', 'absent', 'not_applicable', 'unknown', 'unclear']],
                     'evidence' => ['type' => 'string'], 'replaces_previous' => ['type' => 'boolean'],
                     'needs_detail' => ['type' => 'boolean'],
                 ]]],
@@ -70,7 +82,7 @@ class IntakeInterpreter
         ]];
     }
 
-    /** @return array{facts: array, next_question: array} */
+    /** @return array{facts: array, next_question: array, language_change: ?array} */
     private function parse(array $envelope, string $reply): array
     {
         if (($envelope['status'] ?? null) !== 'completed' || ! is_array($envelope['output'] ?? null)) {
@@ -98,7 +110,7 @@ class IntakeInterpreter
         } catch (JsonException) {
             throw new InvalidIntakeResponse('invalid_json');
         }
-        if (! is_array($result) || count($result) !== 2 || ! is_array($result['facts'] ?? null)
+        if (! is_array($result) || count($result) !== 3 || ! array_key_exists('language_change', $result) || ! is_array($result['facts'] ?? null)
             || ! array_is_list($result['facts']) || count($result['facts']) > 15) {
             throw new InvalidIntakeResponse('invalid_facts');
         }
@@ -106,14 +118,19 @@ class IntakeInterpreter
         foreach ($result['facts'] as $index => $fact) {
             if (! is_array($fact) || count($fact) !== 5 || ! in_array($fact['field'] ?? null, PatientFields::NAMES, true)
                 || in_array($fact['field'], $seen, true)
-                || ! in_array($fact['state'] ?? null, ['reported', 'absent', 'not_applicable', 'unknown'], true)
+                || ! in_array($fact['state'] ?? null, ['reported', 'absent', 'not_applicable', 'unknown', 'unclear'], true)
                 || ! is_bool($fact['replaces_previous'] ?? null)
                 || ! is_bool($fact['needs_detail'] ?? null)
                 || ! is_string($fact['evidence'] ?? null) || trim($fact['evidence']) === ''
                 || ! str_contains($reply, $fact['evidence'])) {
                 throw new InvalidIntakeResponse('ungrounded_fact');
             }
-            if ($fact['field'] === 'age' && $fact['state'] !== 'unknown'
+            if ($fact['state'] !== 'unknown' && preg_match('/\b(maybe|perhaps|possibly|probably|unsure|not sure|i think|i guess|siguro|tingali|yata|guro)\b/u', mb_strtolower($fact['evidence']))) {
+                $fact['state'] = 'unclear';
+            }
+            $fact['needs_detail'] = $fact['needs_detail'] || $this->needsClarification($fact);
+            $result['facts'][$index] = $fact;
+            if ($fact['field'] === 'age' && ! $fact['needs_detail'] && $fact['state'] !== 'unknown'
                 && ($fact['state'] !== 'reported' || ! preg_match('/^\d{1,3}$/', $fact['evidence']))) {
                 throw new InvalidIntakeResponse('invalid_age');
             }
@@ -121,6 +138,13 @@ class IntakeInterpreter
             if (in_array($fact['state'], ['absent', 'not_applicable'], true)) {
                 $result['facts'][$index]['evidence'] = $this->sentenceContaining($reply, $fact['evidence']);
             }
+        }
+        $languageChange = $result['language_change'];
+        if ($languageChange !== null && (! is_array($languageChange) || count($languageChange) !== 2
+            || ! in_array($languageChange['language'] ?? null, array_keys(PatientChatContent::LOCALES), true)
+            || ! is_string($languageChange['evidence'] ?? null) || trim($languageChange['evidence']) === ''
+            || ! str_contains($reply, $languageChange['evidence']))) {
+            throw new InvalidIntakeResponse('invalid_language_change');
         }
         $question = $result['next_question'] ?? null;
         if (! is_array($question) || count($question) !== 2 || ! is_array($question['fields'] ?? null) || ! array_is_list($question['fields'])
@@ -134,7 +158,30 @@ class IntakeInterpreter
             }
         }
 
-        return ['facts' => $result['facts'], 'next_question' => $question];
+        return ['facts' => $result['facts'], 'next_question' => $question, 'language_change' => $languageChange];
+    }
+
+    /** Protect common incomplete answers even when the model marks them complete. */
+    private function needsClarification(array $fact): bool
+    {
+        if ($fact['state'] === 'unclear') {
+            return true;
+        }
+        if ($fact['state'] === 'unknown') {
+            return false;
+        }
+        $value = trim(mb_strtolower($fact['evidence']), " \t\n\r\0\x0B.!?…");
+        if ($fact['state'] !== 'reported') {
+            return false;
+        }
+        if ($fact['field'] !== 'worsening' && in_array($value, ['yes', 'yes po', 'oo', 'oo po', 'opo', 'naa', 'meron', 'mayroon'], true)) {
+            return true;
+        }
+        if ($fact['field'] === 'duration' && preg_match('/^\d+(?:[.,]\d+)?$/u', $value)) {
+            return true;
+        }
+
+        return in_array($value, ['something', 'stuff', 'basta', 'i feel bad', 'i feel unwell', 'not feeling well', 'ambot unsa'], true);
     }
 
     /** Keep the original sentence so a shortened excerpt cannot discard its negation. */

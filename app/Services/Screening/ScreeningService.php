@@ -23,6 +23,9 @@ class ScreeningService
             : (array_key_exists($data['language'], PatientChatContent::LOCALES) ? $data['language'] : 'English');
         $prompt = file_get_contents(resource_path('prompts/'.$promptVersion.'.txt'));
         $prompt = str_replace('{{response_language}}', $responseLanguage ?? 'English', $prompt);
+        if ($responseLanguage !== null) {
+            $prompt .= "\n\n".PatientChatContent::voiceGuidance($responseLanguage, forScreening: true);
+        }
         $settings = [
             'model' => config('triage.model'), 'store' => false,
             'reasoning' => ['effort' => config('triage.reasoning_effort')],
@@ -45,6 +48,7 @@ class ScreeningService
                 'classification_mode' => config('triage.classification_mode'),
                 'criteria_status' => 'pending_clinical_review',
                 'response_language' => $responseLanguage,
+                'patient_voice_version' => $responseLanguage === null ? null : config('triage.patient_voice_version'),
                 'timeout_seconds' => config('triage.timeout_seconds'),
                 'connect_timeout_seconds' => config('triage.connect_timeout_seconds'),
                 'max_attempts' => min(3, max(1, config('triage.max_attempts'))),

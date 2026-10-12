@@ -63,7 +63,7 @@ export default function Dashboard({ counts, sessions }: { counts: Counts; sessio
                     <FlaskConical size={27} strokeWidth={1.5} />
                 </div>
                 <div>
-                    <span className="eyebrow">THE TRIAGEFLOW STUDY</span>
+                    <span className="eyebrow">THE FIRSTLOOK STUDY</span>
                     <h2>One case. Two methods to examine.</h2>
                     <p>
                         Explore multilingual preliminary screening with a pretrained LLM and a

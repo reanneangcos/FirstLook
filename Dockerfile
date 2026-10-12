@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 WORKDIR /var/www/html
-COPY docker/entrypoint.sh /usr/local/bin/triageflow-entrypoint
-RUN chmod +x /usr/local/bin/triageflow-entrypoint
-ENTRYPOINT ["triageflow-entrypoint"]
+COPY docker/entrypoint.sh /usr/local/bin/firstlook-entrypoint
+RUN chmod +x /usr/local/bin/firstlook-entrypoint
+ENTRYPOINT ["firstlook-entrypoint"]
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000", "--no-reload"]

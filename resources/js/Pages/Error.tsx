@@ -33,11 +33,11 @@ export default function Error({ status }: { status: number }) {
             <Head title={title} />
             <section className="panel max-w-lg p-8">
                 <CircleAlert size={28} className="mb-5" />
-                <p className="eyebrow">TRIAGEFLOW · {status}</p>
+                <p className="eyebrow">FIRSTLOOK · {status}</p>
                 <h1>{title}</h1>
                 <p className="my-5 text-sm">{description}</p>
                 <Link href={auth?.user ? '/admin' : '/'} className="button primary">
-                    Return to TriageFlow
+                    Return to FirstLook
                 </Link>
             </section>
         </main>

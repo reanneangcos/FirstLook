@@ -272,7 +272,12 @@ export default function Show({ screening: s }: { screening: Session }) {
                 <aside className="detail-aside">
                     <section className="panel guidance-card">
                         <span className="method-letter muted">B</span>
-                        <h2>Method B · ESI v4 rules</h2>
+                        <h2>
+                            Method B ·{' '}
+                            {s.method_b_result?.output_kind === 'provisional_esi_prediction'
+                                ? 'Provisional ESI rules'
+                                : 'ESI rules'}
+                        </h2>
                         <span className={`status-badge ${s.method_b_status}`}>
                             {s.method_b_priority != null
                                 ? `ESI ${s.method_b_priority}`
@@ -284,6 +289,12 @@ export default function Show({ screening: s }: { screening: Session }) {
                         </p>
                         {s.method_b_result && (
                             <>
+                                {s.method_b_result.decision_d && (
+                                    <p>
+                                        Decision D: not assessed.{' '}
+                                        {s.method_b_result.decision_d.reason}
+                                    </p>
+                                )}
                                 <p>
                                     Rule version: {s.method_b_rule_version}
                                     {s.method_b_result.stopped_at &&

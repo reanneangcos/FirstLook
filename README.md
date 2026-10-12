@@ -1,12 +1,14 @@
-# TriageFlow
+# FirstLook
+
+[Project repository](https://github.com/reanneangcos/FirstLook)
 
 A local research prototype for a paired comparison of multilingual preliminary screening methods. It uses fictional adult cases only. It does not diagnose, recommend treatment, train a model, or manage patient queues.
 
 - **Method A — GPT Luna triage:** Luna understands the case and assigns the preliminary triage result. Its original response and request metadata are preserved.
-- **Method B — hybrid:** the deterministic ESI v4 layer evaluates the same saved extracted facts and records a separate result and trace. Clinical criteria await reviewer approval, and the current patient-reported input lacks required clinical assessments. Method B returns Needs review when unsupported and never copies or falls back to Luna’s priority.
+- **Method B — hybrid:** the selected handbook engine follows ESI v4 A/B/C with a provisional ESI 3 branch and records its own result and trace. It receives the same saved extracted facts; patient-report mappings and clinical approvals remain incomplete, so unsupported inputs return Needs review. Method B never copies or falls back to Luna’s priority. See [the rule-layer guide](docs/rule-layer-guide.md).
 - **Priorities:** provisional ESI 1–5. **Needs review** has no priority. Technical failures are recorded separately.
 
-The active `screening-v0.3-llm-baseline` prompt enables **exploratory Luna-only triage** for fictional adult cases. It can return ESI 1–5 using the model’s pretrained understanding, or Needs review when the reported information does not support an estimate. Reviewed study criteria are still pending: these runs are development demonstrations, not the paper’s final baseline evaluation. Older prompts and saved outcomes remain unchanged. Each new screening records its classification mode, prompt and criteria status.
+The active `screening-v0.4-llm-baseline` prompt enables **exploratory Luna-only triage** for fictional adult cases. It can return ESI 1–5 using the model’s pretrained understanding, or Needs review when the reported information does not support an estimate. Reviewed study criteria are still pending: these runs are development demonstrations, not the paper’s final baseline evaluation. Older prompts and saved outcomes remain unchanged. Each new screening records its classification mode, prompt and criteria status.
 
 ## What is included
 
@@ -23,7 +25,11 @@ For a step-by-step API walkthrough, read **[Connect the chatbot to OpenAI](docs/
 
 **Docker setup:** Docker Desktop with Docker Compose, a terminal, and a browser. Start Docker Desktop first. You do not need PHP or Node installed on your computer for this path.
 
-The `app` service runs Laravel/PHP. The `node` service runs Vite. SQLite is the database because the thesis does not specify one. Docker keeps it in a named `database_data` volume across ordinary restarts and `docker compose down`. The Compose project is named `triageflow-thesis2` to keep this checkout separate from other TriageFlow projects.
+The `app` service runs Laravel/PHP. The `node` service runs Vite. SQLite is the database because the thesis does not specify one. Docker keeps it in a named `database_data` volume across ordinary restarts and `docker compose down`. The Compose project is named `firstlook-thesis2` to keep this checkout separate from other FirstLook projects.
+
+Existing installations can retain their Docker volumes through the local `FIRSTLOOK_DATABASE_VOLUME`, `FIRSTLOOK_PHP_VOLUME` and `FIRSTLOOK_NODE_VOLUME` settings in `.env`. Fresh installations use FirstLook volume names by default. Preserve these settings when restarting an upgraded installation.
+
+New patient stubs use `FL-`. Existing account credentials, saved stubs, conversations and screening records retain their original values. Archived prompts and dated research documents retain their original branding for traceability; the active application uses FirstLook.
 
 See [the installed version record](docs/versions.md) for exact versions and the small Composer patch difference from the manuscript.
 
@@ -99,7 +105,7 @@ The new migrations add conversations and their links to screening records. They 
 ## Use the patient and staff sides
 
 1. Open the patient chatbot at `/`, confirm a fictional adult case, and choose English, Bisaya or Tagalog. Questions, controls and patient messages follow that language. Submitted answers can use any language variant or mix and keep their original wording.
-2. Start a conversation to receive a stub such as `TF-000001`. Describe the concern naturally: one reply can fill several of the 15 dataset fields. The bot skips captured details and groups related missing information. Vague answers get one targeted clarification. Skipping retains any partial answer; unavailable information stays unknown.
+2. Start a conversation to receive a stub such as `FL-000001`. Describe the concern naturally: one reply can fill several of the 15 dataset fields. The bot skips captured details and groups related missing information. Vague answers get one targeted clarification. Skipping retains any partial answer; unavailable information stays unknown.
 3. Expand **Review or correct your details**, check the captured answers, confirm the excluded-data boundaries and submit for screening. Each typed reply uses one server-side OpenAI call to understand the reply and write the next question. Starting and skipping use no API calls. Final screening is a separate request. Failed intake calls keep the question and draft available for retry.
 4. Staff sign in at `/admin`, select **Patients & chats**, search the stub and open its complete history. **Full triage record** links to the original response and technical metadata.
 
@@ -171,17 +177,17 @@ Open http://127.0.0.1:8000. For hot reloading, run `npm run dev` in a second ter
 
 ## Edit the prompt or add approved rules
 
-Create a new versioned prompt file in `resources/prompts/` and update `prompt_version` for the structured research intake or `patient_prompt_version` for the patient chatbot in `config/triage.php`. Existing sessions retain the prompt text and settings that created them. The final screening schema is in `ScreeningOutput.php`. Conversational extraction and question wording use `intake-v1-conversational.txt` and `IntakeInterpreter`; question groups and repeat limits live in `ConversationalInterview`. Changing intake also changes the study input collection process, so freeze it before evaluation.
+Create a new versioned prompt file in `resources/prompts/` and update `prompt_version` for the structured research intake or `patient_prompt_version` for the patient chatbot in `config/triage.php`. Existing sessions retain the prompt text and settings that created them. The final screening schema is in `ScreeningOutput.php`. Conversational extraction and question wording use `intake-v3-conversational.txt` and `IntakeInterpreter`; question groups and repeat limits live in `ConversationalInterview`. Changing intake also changes the study input collection process, so freeze it before evaluation.
 
-`RuleLayer` is bound to `EsiV4RuleLayer` in `app/Services/TriageRules/`. New screenings pass the same accepted LLM-extracted facts to Method B and save a separate result, input snapshot, rule version and audit trace. Method A's response and priority remain unchanged. The engine makes no provider request and does not accept Method A's priority as a decision or fallback. Historical records remain unevaluated by this layer.
+`RuleLayer` uses `EsiV4RuleLayer` through the default `esi.mode = handbook_pre_screening`, with the separately reviewed provisional ESI 3 branch. `ProvisionalEsiRuleLayer` remains available through `esi.mode = provisional_patient_report`. New screenings pass the same accepted LLM-extracted facts to Method B and save a separate result, input snapshot, rule version and audit trace. Method A's response and priority remain unchanged. The engine makes no provider request and does not accept Method A's priority as a decision or fallback. Historical records remain unchanged. The [rule-layer guide](docs/rule-layer-guide.md) describes the required mappings, review records and next steps.
 
-The engine follows the [official ESI v4 A–D order](https://www.ahrq.gov/sites/default/files/publications2/files/esitriagealgorithm-v4_0.pdf). The [AHRQ v4 handbook](https://www.govinfo.gov/content/pkg/GOVPUB-HE20_6500-PURL-gpo23161/pdf/GOVPUB-HE20_6500-PURL-gpo23161.pdf) supplies the interpretation of resource estimates, acute mental-status changes, pain assessment and measured vital signs. No MTS criteria are used. Danger-zone adult vitals flag clinical judgment without assigning ESI 2. Pain scores alone do not assign ESI 2.
+The separate `EsiV4RuleLayer`, explicitly selected with `esi.mode = clinical_esi_v4`, retains the [official ESI v4 A–D order](https://www.ahrq.gov/sites/default/files/publications2/files/esitriagealgorithm-v4_0.pdf). The [AHRQ v4 handbook](https://www.govinfo.gov/content/pkg/GOVPUB-HE20_6500-PURL-gpo23161/pdf/GOVPUB-HE20_6500-PURL-gpo23161.pdf) supplies its clinical structure. No MTS criteria are used. Danger-zone adult vitals flag clinical judgment without automatically assigning ESI 2, and pain scores alone do not assign ESI 2.
 
-Clinical approvals belong in `config/esi.php`, keyed by the IDs in `EsiV4RuleCatalog`. Each approval requires `status`, `reviewer`, `reviewed_at` (YYYY-MM-DD), `record_id` and the matching `rule_version`. No approvals have been supplied, so all clinical rules remain pending.
+Provisional definitions and approvals belong in `config/esi.php`, under `provisional_rules` and `provisional_approvals`. Approval requires reviewer/date/record details, engine version and a matching definition hash. Editing a definition invalidates its prior approval. The clinical engine retains its separate `approvals` configuration. All approval arrays are empty.
 
 **The study deliberately excludes vital signs and professional assessment findings. Collecting them is not a remaining implementation task.** Manuscript sections 1.5, 3.5 and 3.11 require preliminary ESI-based decisions supported by permitted patient-reported facts. Clinical review must define which rules and levels those facts can support; excluded information must not be guessed or replaced with invented symptom thresholds. Standard ESI v4 Decision D cannot be completed within this input scope, and skipping it does not establish ESI 3.
 
-The current engine implements the standard decision order, but its optional clinical-assessment argument is outside the study input contract and is not connected to patient endpoints. The mappings from permitted reports to reviewed screening criteria are still unimplemented. Consequently, current Method B outputs require review, often at A before reaching D. Final study development needs a reviewed rule specification for the allowed inputs, followed by implementation and validation of that specification. Both methods must receive the same permitted case information and reviewed criteria for the final comparison. This is not yet a complete implementation of the paper's classification procedure.
+The provisional engine evaluates exact patient-fact conditions in A, B, C order, including explicit earlier-decision exclusions. Every result records Decision D as not assessed. Provisional ESI 3 requires its own approved mapping; it is never the fallback for missing vitals or no match. The execution path is implemented, but the workbook contains labels without general rules, so the mappings remain empty and Method B still returns Needs review. Before final comparison, define and review those mappings, test them on development cases and supply the same criteria to both methods. The existing clinical engine's optional clinical-assessment argument remains outside patient endpoints.
 
 ## Troubleshooting
 

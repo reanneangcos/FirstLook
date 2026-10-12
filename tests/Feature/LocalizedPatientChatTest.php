@@ -33,6 +33,27 @@ class LocalizedPatientChatTest extends TestCase
         return [['English'], ['Bisaya'], ['Tagalog']];
     }
 
+    #[DataProvider('languages')]
+    public function test_language_catalogs_cover_all_messages_and_preserve_interpolation_tokens(string $language): void
+    {
+        $english = PatientChatContent::catalog('English');
+        $localized = PatientChatContent::catalog($language);
+        $this->assertSame(array_keys($english), array_keys($localized));
+        foreach ($english as $section => $messages) {
+            if ($section === 'locale') {
+                continue;
+            }
+            $this->assertSame(array_keys($messages), array_keys($localized[$section]), $section);
+            foreach ($messages as $key => $message) {
+                $translation = $localized[$section][$key];
+                $this->assertNotSame('', trim($translation), $section.'.'.$key);
+                preg_match_all('/:[a-zA-Z]+/', $message, $expectedTokens);
+                preg_match_all('/:[a-zA-Z]+/', $translation, $actualTokens);
+                $this->assertEqualsCanonicalizing($expectedTokens[0], $actualTokens[0], $section.'.'.$key);
+            }
+        }
+    }
+
     private function answer(PatientVisit $visit, string $field, ?string $message, ?int $revision = null): TestResponse
     {
         return $this->withSession(['patient_visit_id' => $visit->id])->post('/patient/messages', [
@@ -149,13 +170,22 @@ class LocalizedPatientChatTest extends TestCase
         $this->withSession(['patient_visit_id' => $visit->id])->post('/patient/screen', ['scope_confirmed' => true])->assertRedirect('/');
         $screening = $visit->fresh()->screening;
         $this->assertSame('completed', $screening->processing_status);
-        $this->assertSame('screening-v0.3-llm-baseline', $screening->prompt_version);
+        $this->assertSame('screening-v0.4-llm-baseline', $screening->prompt_version);
         $this->assertSame($language, $screening->request_settings['response_language']);
+        $this->assertSame('patient-voice-v2-casual', $screening->request_settings['patient_voice_version']);
+        $this->assertStringContainsString('FirstLook patient voice v2', $screening->prompt_text);
+        $this->assertStringContainsString('Patient-facing output field for this request: explanation', $screening->prompt_text);
+        $this->assertStringNotContainsString('"shortQuestions":', $screening->prompt_text);
+        $this->assertStringContainsString(PatientChatContent::text($language, 'conversation', 'ready'), $screening->prompt_text);
+        $this->assertSame(array_replace(array_fill_keys(PatientFields::NAMES, null), MockScreening::input()['patient']), $screening->patient_input);
         $this->assertSame('Itchy arm', $screening->parsed_output['extracted_facts'][0]['evidence']);
         $this->assertStringContainsString($output['explanation'], $visit->messages()->first()->content);
         Http::assertSentCount(1);
         Http::assertSent(fn ($request) => str_contains($request['input'][0]['content'], 'Patient-facing response language: '.$language)
+            && $request['input'][0]['content'] === $screening->prompt_text
+            && ! str_contains($request['input'][0]['content'], '{{wording_examples}}')
             && ! str_contains(json_encode($request->data()), $visit->stub_number)
+            && ! array_key_exists('patient_voice_version', $request->data())
             && count(json_decode($request['input'][1]['content'], true)) === 15);
     }
 

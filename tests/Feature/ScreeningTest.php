@@ -71,9 +71,11 @@ class ScreeningTest extends TestCase
         Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope(MockScreening::output(2)))]);
         $this->post('/admin/screenings', MockScreening::input())->assertRedirect();
         $session = ScreeningSession::where('id', '!=', $previous->id)->firstOrFail();
-        $this->assertSame('screening-v0.3-llm-baseline', $session->prompt_version);
+        $this->assertSame('screening-v0.4-llm-baseline', $session->prompt_version);
         $this->assertSame('exploratory_llm_only', $session->request_settings['classification_mode']);
         $this->assertSame('pending_clinical_review', $session->request_settings['criteria_status']);
+        $this->assertNull($session->request_settings['patient_voice_version']);
+        $this->assertSame(str_replace('{{response_language}}', 'English', file_get_contents(resource_path('prompts/screening-v0.4-llm-baseline.txt'))), $session->prompt_text);
         $this->assertSame(2, $session->method_a_priority);
         $this->assertNull($session->method_b_priority);
         $this->assertSame('needs_review', $previous->fresh()->method_a_status);

@@ -24,7 +24,7 @@ class ConversationalIntakeTest extends TestCase
         parent::setUp();
         $this->withoutVite();
         Http::preventStrayRequests();
-        config(['triage.intake_version' => 'intake-v1-conversational', 'triage.api_key' => 'mock-only-key',
+        config(['triage.intake_version' => 'intake-v3-conversational', 'triage.api_key' => 'mock-only-key',
             'triage.model' => 'gpt-6-luna', 'triage.retry_delay_ms' => 0]);
     }
 
@@ -48,9 +48,9 @@ class ConversationalIntakeTest extends TestCase
         return ['field' => $field, 'evidence' => $evidence, 'state' => $state, 'needs_detail' => $needsDetail, 'replaces_previous' => $corrects];
     }
 
-    private static function intakeResponse(array $facts = [], array $fields = [], string $question = ''): array
+    private static function intakeResponse(array $facts = [], array $fields = [], string $question = '', ?array $languageChange = null): array
     {
-        return MockScreening::envelope(['facts' => $facts, 'next_question' => ['fields' => $fields, 'text' => $question]]);
+        return MockScreening::envelope(['facts' => $facts, 'next_question' => ['fields' => $fields, 'text' => $question], 'language_change' => $languageChange]);
     }
 
     private function skipTo(PatientVisit $visit, string $field): void
@@ -83,12 +83,22 @@ class ConversationalIntakeTest extends TestCase
         $this->assertSame(['age', 'reported_sex'], $visit->refresh()->interview_state['pending_fields']);
         $this->assertSame(PatientChatContent::text($language, 'shortQuestions', 'age').' '.PatientChatContent::text($language, 'shortQuestions', 'reported_sex'),
             $visit->messages()->reorder('id', 'desc')->first()->content);
-        Http::assertSent(function ($request) use ($language, $visit): bool {
+        $metadata = $visit->messages()->reorder('id', 'desc')->first()->metadata;
+        $this->assertSame('patient-voice-v2-casual', $metadata['patient_voice_version']);
+        $this->assertStringContainsString('FirstLook patient voice v2', $metadata['prompt_text']);
+        $this->assertStringContainsString('Patient-facing output field for this request: next_question.text', $metadata['prompt_text']);
+        $this->assertStringNotContainsString('"reviewMessage":', $metadata['prompt_text']);
+        $this->assertStringContainsString(PatientChatContent::text($language, 'detailQuestions', 'medical_devices'), $metadata['prompt_text']);
+        Http::assertSent(function ($request) use ($language, $visit, $metadata): bool {
             $context = json_decode($request['input'][1]['content'], true);
             $schema = $request['text']['format']['schema']['properties'];
 
             return $context['response_language'] === $language
+                && $request['input'][0]['content'] === $metadata['prompt_text']
+                && str_contains($request['input'][0]['content'], 'Patient-facing response language: '.$language)
+                && ! str_contains($request['input'][0]['content'], '{{wording_examples}}')
                 && ! str_contains(json_encode($request->data()), $visit->stub_number)
+                && ! array_key_exists('patient_voice_version', $request->data())
                 && ! array_key_exists('priority', $schema) && ! array_key_exists('status', $schema)
                 && $request['store'] === false;
         });
@@ -117,6 +127,169 @@ class ConversationalIntakeTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public static function languageRequests(): array
+    {
+        return [
+            'switch to Bisaya' => ['English', 'Bisaya', 'boss namali kog pili sa language pwede ka magbisaya?'],
+            'switch to Tagalog' => ['Bisaya', 'Tagalog', 'Tagalog na lang please'],
+            'switch to English' => ['Tagalog', 'English', 'Please use English'],
+        ];
+    }
+
+    #[DataProvider('languageRequests')]
+    public function test_language_requests_change_the_saved_language_without_counting_as_patient_answers(string $initial, string $target, string $reply): void
+    {
+        $visit = $this->startChat($initial);
+        $counts = $visit->interview_state['asked_count'];
+        Http::fake(['api.openai.com/v1/responses' => Http::sequence()
+            ->push(self::intakeResponse([], ['main_complaint', 'symptom_description'], 'Stale wording in the wrong language.',
+                ['language' => $target, 'evidence' => $reply]))
+            ->push(self::intakeResponse([self::fact('main_complaint', 'Itchy arm'), self::fact('symptom_description', 'Itchy arm')]))]);
+
+        $this->answer($visit, $reply)->assertRedirect('/');
+
+        $this->assertSame($target, $visit->refresh()->language);
+        $this->assertSame([], $visit->answers);
+        $this->assertSame(0, $visit->question_index);
+        $this->assertSame($counts, $visit->interview_state['asked_count']);
+        $this->assertSame(['main_complaint', 'symptom_description'], $visit->interview_state['pending_fields']);
+        $message = $visit->messages()->reorder('id', 'desc')->first();
+        $this->assertSame(PatientChatContent::text($target, 'conversation', 'languageChanged').' '
+            .PatientChatContent::text($target, 'shortQuestions', 'main_complaint').' '
+            .PatientChatContent::text($target, 'shortQuestions', 'symptom_description'), $message->content);
+        $this->assertSame($initial, $message->metadata['previous_language']);
+        $this->assertSame($target, $message->metadata['response_language']);
+        $this->get('/')->assertInertia(fn (Assert $page) => $page->where('visit.language', $target)->where('visit.question_index', 0));
+
+        $this->answer($visit, 'Itchy arm')->assertRedirect('/');
+
+        Http::assertSentCount(2);
+        Http::assertSent(fn ($request) => json_decode($request['input'][1]['content'], true)['response_language'] === $target
+            && str_contains($request['input'][0]['content'], 'Patient-facing response language: '.$target));
+        $this->assertSame(2, $visit->refresh()->question_index);
+        $this->assertSame(PatientChatContent::text($target, 'shortQuestions', 'age').' '.PatientChatContent::text($target, 'shortQuestions', 'reported_sex'),
+            $visit->messages()->reorder('id', 'desc')->first()->content);
+    }
+
+    public function test_language_change_and_clear_symptoms_in_one_reply_preserve_the_original_evidence(): void
+    {
+        $visit = $this->startChat();
+        $reply = 'Magbisaya ta. Katol akong bukton.';
+        Http::fake(['api.openai.com/v1/responses' => Http::response(self::intakeResponse([
+            self::fact('main_complaint', 'Katol akong bukton'), self::fact('symptom_description', 'Katol akong bukton'),
+        ], languageChange: ['language' => 'Bisaya', 'evidence' => 'Magbisaya ta']))]);
+
+        $this->answer($visit, $reply)->assertRedirect('/');
+
+        $this->assertSame('Bisaya', $visit->refresh()->language);
+        $this->assertSame('Katol akong bukton', $visit->answers['main_complaint']);
+        $this->assertSame(2, $visit->question_index);
+        $this->assertSame(['age', 'reported_sex'], $visit->interview_state['pending_fields']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_reply_language_alone_does_not_change_the_selected_response_language(): void
+    {
+        $visit = $this->startChat('Tagalog');
+        Http::fake(['api.openai.com/v1/responses' => Http::response(self::intakeResponse([
+            self::fact('main_complaint', 'Katol akong bukton'), self::fact('symptom_description', 'Katol akong bukton'),
+        ]))]);
+
+        $this->answer($visit, 'Katol akong bukton')->assertRedirect('/');
+
+        $this->assertSame('Tagalog', $visit->refresh()->language);
+        $this->assertSame(PatientChatContent::text('Tagalog', 'shortQuestions', 'age').' '.PatientChatContent::text('Tagalog', 'shortQuestions', 'reported_sex'),
+            $visit->messages()->reorder('id', 'desc')->first()->content);
+        Http::assertSentCount(1);
+    }
+
+    public static function incompleteAnswers(): array
+    {
+        return [
+            'English medication yes' => ['English', 'maintenance_medications', 'yes', 'reported'],
+            'Tagalog medication yes' => ['Tagalog', 'maintenance_medications', 'oo', 'reported'],
+            'Bisaya medication yes' => ['Bisaya', 'maintenance_medications', 'naa', 'reported'],
+            'tentative device' => ['Bisaya', 'medical_devices', 'catheter man guro', 'reported'],
+            'tentative negative' => ['English', 'allergies', 'Maybe no allergies', 'absent'],
+            'duration without units' => ['English', 'duration', '3', 'reported'],
+            'ambiguous age' => ['Tagalog', 'age', '34 o 35', 'unclear'],
+        ];
+    }
+
+    #[DataProvider('incompleteAnswers')]
+    public function test_unclear_answers_stay_pending_after_repeated_attempts_even_when_marked_complete(string $language, string $field, string $reply, string $state): void
+    {
+        $visit = $this->startChat($language);
+        $this->skipTo($visit, $field);
+        Http::fake(['api.openai.com/v1/responses' => Http::response(self::intakeResponse([self::fact($field, $reply, $state)]))]);
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $this->answer($visit, $reply)->assertRedirect('/');
+        }
+
+        $this->assertArrayNotHasKey($field, $visit->refresh()->answers);
+        $this->assertSame(0, $visit->question_index);
+        $this->assertSame([$field], $visit->interview_state['pending_fields']);
+        $this->assertSame('collecting', $visit->status);
+        $this->assertSame($reply, $visit->interview_state['unresolved_answers'][$field]['evidence']);
+        $this->post('/patient/screen', ['scope_confirmed' => true])->assertRedirect('/');
+        $this->assertDatabaseCount('screening_sessions', 0);
+        Http::assertSentCount(3);
+    }
+
+    public function test_clear_negative_resolves_a_tentative_positive_without_combining_conflicting_evidence(): void
+    {
+        $visit = $this->startChat('Bisaya');
+        $this->skipTo($visit, 'medical_devices');
+        Http::fake(['api.openai.com/v1/responses' => Http::sequence()
+            ->push(self::intakeResponse([self::fact('medical_devices', 'catheter man guro')]))
+            ->push(self::intakeResponse([self::fact('medical_devices', 'Wala diay koy catheter', 'absent', corrects: true)]))]);
+
+        $this->answer($visit, 'catheter man guro')->assertRedirect('/');
+        $this->answer($visit, 'Wala diay koy catheter')->assertRedirect('/');
+
+        $this->assertSame('Wala diay koy catheter', $visit->refresh()->answers['medical_devices']);
+        $this->assertSame(1, $visit->question_index);
+        $this->assertArrayNotHasKey('medical_devices', $visit->interview_state['unresolved_answers']);
+        Http::assertSentCount(2);
+    }
+
+    public function test_explicit_unknown_resolves_clarification_without_counting_as_a_clear_answer(): void
+    {
+        $visit = $this->startChat();
+        $this->skipTo($visit, 'known_conditions');
+        Http::fake(['api.openai.com/v1/responses' => Http::sequence()
+            ->push(self::intakeResponse([self::fact('maintenance_medications', 'yes')]))
+            ->push(self::intakeResponse([self::fact('maintenance_medications', "I don't know the name", 'unknown')]))]);
+
+        $this->answer($visit, 'yes')->assertRedirect('/');
+        $this->answer($visit, "I don't know the name")->assertRedirect('/');
+
+        $this->assertNull($visit->refresh()->answers['maintenance_medications']);
+        $this->assertSame(0, $visit->question_index);
+        $this->assertNotContains('maintenance_medications', $visit->interview_state['pending_fields']);
+        Http::assertSentCount(2);
+    }
+
+    public function test_existing_conversations_use_the_new_intake_without_rewriting_old_messages(): void
+    {
+        $visit = $this->startChat();
+        $oldMessage = $visit->messages()->first()->content;
+        $visit->update(['answers' => ['main_complaint' => 'I feel bad'], 'question_index' => 1,
+            'interview_state' => array_replace($visit->interview_state, ['version' => 'intake-v1-conversational', 'clarify_fields' => ['main_complaint']])]);
+        Http::fake(['api.openai.com/v1/responses' => Http::response(self::intakeResponse([], languageChange: ['language' => 'Bisaya', 'evidence' => 'Bisaya please']))]);
+
+        $this->answer($visit, 'Bisaya please')->assertRedirect('/');
+
+        $this->assertSame('intake-v3-conversational', $visit->refresh()->interview_state['version']);
+        $this->assertArrayNotHasKey('main_complaint', $visit->answers);
+        $this->assertSame('I feel bad', $visit->interview_state['unresolved_answers']['main_complaint']['evidence']);
+        $this->assertSame(0, $visit->question_index);
+        $this->assertSame($oldMessage, $visit->messages()->first()->content);
+        $this->assertSame('intake-v3-conversational', $visit->messages()->reorder('id', 'desc')->first()->metadata['intake_version']);
+        Http::assertSentCount(1);
+    }
+
     public function test_skip_covers_all_dataset_fields_in_six_grouped_turns_without_api_calls(): void
     {
         $visit = $this->startChat();
@@ -131,7 +304,7 @@ class ConversationalIntakeTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_a_vague_medication_answer_gets_one_specific_follow_up_and_keeps_both_replies(): void
+    public function test_a_vague_medication_answer_is_counted_only_after_a_specific_clarification(): void
     {
         $visit = $this->startChat();
         $this->skipTo($visit, 'known_conditions');
@@ -141,14 +314,17 @@ class ConversationalIntakeTest extends TestCase
             ->push(self::intakeResponse([self::fact('maintenance_medications', 'Metformin')]))]);
         $this->answer($visit, 'No conditions; yes medication; no allergies')->assertRedirect('/');
         $this->assertSame(['maintenance_medications'], $visit->refresh()->interview_state['pending_fields']);
+        $this->assertArrayNotHasKey('maintenance_medications', $visit->answers);
+        $this->assertSame(2, $visit->question_index);
         $this->assertSame('What are the names of your regular medications?', $visit->messages()->reorder('id', 'desc')->first()->content);
         $this->answer($visit, 'Metformin')->assertRedirect('/');
         $this->assertSame("yes medication\nMetformin", $visit->refresh()->answers['maintenance_medications']);
+        $this->assertSame(3, $visit->question_index);
         $this->assertSame(['tests_completed', 'tests_requested', 'medical_devices'], $visit->interview_state['pending_fields']);
         Http::assertSentCount(2);
     }
 
-    public function test_skipping_a_clarification_retains_the_partial_report(): void
+    public function test_skipping_a_clarification_keeps_the_transcript_but_leaves_the_answer_unknown(): void
     {
         $visit = $this->startChat();
         Http::fake(['api.openai.com/*' => Http::response(self::intakeResponse([
@@ -156,24 +332,28 @@ class ConversationalIntakeTest extends TestCase
         ]))]);
         $this->answer($visit, 'I feel bad')->assertRedirect('/');
         $this->answer($visit, null)->assertRedirect('/');
-        $this->assertSame('I feel bad', $visit->refresh()->answers['main_complaint']);
+        $this->assertNull($visit->refresh()->answers['main_complaint']);
+        $this->assertSame(0, $visit->question_index);
+        $this->assertDatabaseHas('chat_messages', ['patient_visit_id' => $visit->id, 'role' => 'patient', 'content' => 'I feel bad']);
         $this->assertSame(['age', 'reported_sex'], $visit->interview_state['pending_fields']);
         Http::assertSentCount(1);
     }
 
-    public function test_unanswered_fields_are_asked_at_most_twice_then_marked_unknown(): void
+    public function test_unrelated_replies_never_automatically_complete_or_skip_pending_fields(): void
     {
         $visit = $this->startChat();
         Http::fake(['api.openai.com/*' => Http::response(self::intakeResponse())]);
         $this->answer($visit, 'hello')->assertRedirect('/');
         $this->answer($visit, 'hello again')->assertRedirect('/');
-        $this->assertNull($visit->refresh()->answers['main_complaint']);
-        $this->assertNull($visit->answers['symptom_description']);
-        $this->assertSame(['age', 'reported_sex'], $visit->interview_state['pending_fields']);
-        Http::assertSentCount(2);
+        $this->answer($visit, 'asdfgh')->assertRedirect('/');
+        $this->assertSame([], $visit->refresh()->answers);
+        $this->assertSame(0, $visit->question_index);
+        $this->assertSame(['main_complaint', 'symptom_description'], $visit->interview_state['pending_fields']);
+        $this->assertSame('collecting', $visit->status);
+        Http::assertSentCount(3);
     }
 
-    public function test_known_fields_cannot_be_reasked_and_only_an_explicit_correction_replaces_them(): void
+    public function test_conflicting_known_answers_require_clarification_before_a_correction_is_accepted(): void
     {
         $visit = $this->startChat();
         Http::fake(['api.openai.com/*' => Http::sequence()
@@ -184,7 +364,9 @@ class ConversationalIntakeTest extends TestCase
         $this->assertSame(['reported_sex'], $visit->refresh()->interview_state['pending_fields']);
         $this->assertSame('What sex do you report?', $visit->messages()->reorder('id', 'desc')->first()->content);
         $this->answer($visit, 'female, 35')->assertRedirect('/');
-        $this->assertSame(34, $visit->refresh()->answers['age']);
+        $this->assertArrayNotHasKey('age', $visit->refresh()->answers);
+        $this->assertSame(['age'], $visit->interview_state['pending_fields']);
+        $this->assertSame('unclear', $visit->interview_state['unresolved_answers']['age']['state']);
         $this->answer($visit, 'Correction: I am 36')->assertRedirect('/');
         $this->assertSame(36, $visit->refresh()->answers['age']);
         $this->assertDatabaseHas('chat_messages', ['role' => 'patient', 'content' => '34. Itchy arm']);
@@ -204,6 +386,8 @@ class ConversationalIntakeTest extends TestCase
     public static function invalidResponses(): array
     {
         return [
+            [self::intakeResponse(languageChange: ['language' => 'Spanish', 'evidence' => 'hello'])],
+            [self::intakeResponse(languageChange: ['language' => 'Bisaya', 'evidence' => 'not in the reply'])],
             [self::intakeResponse([self::fact('main_complaint', 'Invented symptom')])],
             [self::intakeResponse([self::fact('expert_priority', 'hello')])],
             [['status' => 'completed', 'output' => [['content' => 'invalid']]]],

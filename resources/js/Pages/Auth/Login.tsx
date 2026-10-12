@@ -38,7 +38,7 @@ export default function Login() {
                         <LockKeyhole size={23} />
                     </span>
                     <p className="eyebrow">ADMIN & HEALTHCARE STAFF</p>
-                    <h2>Welcome to TriageFlow.</h2>
+                    <h2>Welcome to FirstLook.</h2>
                     <p>Sign in to review patient stubs, conversations and triage records.</p>
                     <form
                         onSubmit={(e) => {

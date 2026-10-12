@@ -1,6 +1,6 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "triageflow/prototype",
+    "name": "firstlook/prototype",
     "type": "project",
     "description": "Research prototype for a paired preliminary screening study.",
     "keywords": [

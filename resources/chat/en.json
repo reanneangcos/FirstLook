@@ -11,7 +11,7 @@
         "answerInChat": "Answer in chat",
         "saveForReview": "Save for review",
         "languageLabel": "Which language should the bot use?",
-        "languageHelp": "The questions will follow your selected language. You can reply in any language variant or mix languages; your original wording is kept.",
+        "languageHelp": "The bot's questions and other messages will follow your selected language. You can reply in any language variant or mix languages; your original wording is kept.",
         "syntheticConfirmation": "I’m using a fictional case, without names or personal identifiers.",
         "adultConfirmation": "The fictional patient is aged 18 or above.",
         "start": "Start conversation",
@@ -41,10 +41,10 @@
         "disclaimer": "Fictional-case thesis demo · Preliminary screening only · Clinical review pending",
         "transcript": "Conversation",
         "patient": "Patient",
-        "guide": "TriageFlow · intake guide",
-        "model": "TriageFlow · AI screening",
-        "intake": "TriageFlow · chat assistant",
-        "coveredProgress": "Details covered: :current / :total",
+        "guide": "FirstLook · intake guide",
+        "model": "FirstLook · AI screening",
+        "intake": "FirstLook · chat assistant",
+        "coveredProgress": "Clear answers: :current / :total",
         "reading": "Reading your reply…",
         "reviewTitle": "Review or correct your details",
         "reviewHelp": "These details came from your replies. Blank fields mean unknown. You can correct them before submitting.",
@@ -103,6 +103,7 @@
         "medical_devices": "What medical device or catheter is reported? Give its name or type only if the case provides it."
     },
     "conversation": {
+        "languageChanged": "Sure, I'll use English from here.",
         "welcome": "Hi! Your stub is :stub. Tell me about the fictional case in your own words. I’ll pick up the details you share and ask only for what’s still missing. You can skip anything you don’t know.",
         "opening": "What brings you in today? Tell me what you’re feeling.",
         "ready": "Thanks, that’s enough to review. I’ve put your answers together below. Check or correct anything before submitting.",
@@ -127,6 +128,7 @@
         "medical_devices": "Do you use any medical device or catheter?"
     },
     "detailQuestions": {
+        "age": "How old are you in years? If you're unsure, you can skip this.",
         "reported_sex": "What sex do you report?",
         "main_complaint": "What specific problem brought you here?",
         "symptom_description": "Where is it, and what does it feel like?",

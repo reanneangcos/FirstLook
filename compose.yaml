@@ -1,4 +1,4 @@
-name: triageflow-thesis2
+name: firstlook-thesis2
 services:
   app:
     build: .
@@ -25,5 +25,8 @@ services:
     init: true
 volumes:
   database_data:
+    name: ${FIRSTLOOK_DATABASE_VOLUME:-firstlook-thesis2_database_data}
   php_dependencies:
+    name: ${FIRSTLOOK_PHP_VOLUME:-firstlook-thesis2_php_dependencies}
   node_dependencies:
+    name: ${FIRSTLOOK_NODE_VOLUME:-firstlook-thesis2_node_dependencies}
