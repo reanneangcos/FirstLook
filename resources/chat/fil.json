@@ -28,7 +28,7 @@
         "send": "Ipadala",
         "skip": "Hindi ko alam / Skip",
         "skipFollowUp": "Magpatuloy",
-        "inputHelp": "Pwede mong pagsamahin ang ilang detalye sa isang sagot.",
+        "inputHelp": "Enter para ipadala. Shift+Enter para sa bagong linya.",
         "reviewConfirmation": "Na-check ko na ang demo case na ito. Wala itong personal na impormasyon, sinukat na vital signs, findings sa physical exam, resulta ng test, o tamang ESI na galing sa answer key.",
         "submit": "Ipadala para sa screening",
         "preparing": "Inihahanda ang screening…",

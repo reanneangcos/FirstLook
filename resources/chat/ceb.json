@@ -28,7 +28,7 @@
         "send": "Ipadala",
         "skip": "Wala ko kabalo / Skip",
         "skipFollowUp": "Padayon",
-        "inputHelp": "Pwede nimo isagol ang pipila ka detalye sa usa ka tubag.",
+        "inputHelp": "Enter para ipadala. Shift+Enter para sa bag-ong linya.",
         "reviewConfirmation": "Na-check na nako ang demo case. Wala kini personal nga impormasyon, gisukod nga vital signs, findings sa physical exam, resulta sa test, o saktong ESI gikan sa answer key.",
         "submit": "Ipadala para sa screening",
         "preparing": "Giandam ang screening…",

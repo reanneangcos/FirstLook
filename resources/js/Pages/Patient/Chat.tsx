@@ -59,7 +59,7 @@ export default function Chat({
         }
     }, [visit?.messages.length]);
     function send(skip: boolean) {
-        if (!question || answer.processing) return;
+        if (!question || answer.processing || (!skip && !answer.data.message.trim())) return;
         answer.transform((data) => ({
             ...data,
             field: question.field,
@@ -146,8 +146,23 @@ export default function Chat({
                                         onChange={(event) =>
                                             answer.setData('message', event.target.value)
                                         }
+                                        onKeyDown={(event) => {
+                                            if (
+                                                event.key !== 'Enter' ||
+                                                event.shiftKey ||
+                                                event.nativeEvent.isComposing ||
+                                                event.nativeEvent.keyCode === 229
+                                            ) {
+                                                return;
+                                            }
+                                            event.preventDefault();
+                                            if (!event.repeat) {
+                                                event.currentTarget.form?.requestSubmit();
+                                            }
+                                        }}
                                         maxLength={3000}
                                         rows={3}
+                                        enterKeyHint="send"
                                         inputMode={
                                             !visit.conversational && question.field === 'age'
                                                 ? 'numeric'
@@ -164,6 +179,7 @@ export default function Chat({
                                         }
                                     />
                                     <button
+                                        type="submit"
                                         className="button primary"
                                         aria-label={copy.send}
                                         disabled={answer.processing || !answer.data.message.trim()}

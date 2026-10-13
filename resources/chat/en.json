@@ -28,7 +28,7 @@
         "send": "Send reply",
         "skip": "I don’t know / skip",
         "skipFollowUp": "Continue without more details",
-        "inputHelp": "You can share several details in one reply.",
+        "inputHelp": "Enter to send. Shift+Enter for a new line.",
         "reviewConfirmation": "I reviewed this fictional case. It contains no identifiers, measured vital signs, examination findings, test results or answer-key labels.",
         "submit": "Submit for screening",
         "preparing": "Preparing the screening…",
