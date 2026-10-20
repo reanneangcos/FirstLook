@@ -131,6 +131,24 @@ class ConversationalIntakeTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_bisaya_none_reported_placeholders_are_saved_as_absent(): void
+    {
+        $visit = $this->startChat('Bisaya');
+        $facts = [
+            self::fact('tests_completed', 'Mga nahimong eksaminasyon: Walay gitaho.', 'unknown'),
+            self::fact('tests_requested', 'Mga eksaminasyon nga gipangayo sa doktor: Walay gitaho.', 'unknown'),
+            self::fact('medical_devices', 'Mga medical device o catheter: Walay gitaho.', 'unknown'),
+        ];
+        Http::fake(['api.openai.com/*' => Http::response(self::intakeResponse($facts))]);
+
+        $this->answer($visit, 'Mga nahimong eksaminasyon: Walay gitaho. Mga eksaminasyon nga gipangayo sa doktor: Walay gitaho. Mga medical device o catheter: Walay gitaho.')
+            ->assertRedirect('/');
+
+        $this->assertSame('Mga nahimong eksaminasyon: Walay gitaho.', $visit->refresh()->answers['tests_completed']);
+        $this->assertSame('Mga eksaminasyon nga gipangayo sa doktor: Walay gitaho.', $visit->answers['tests_requested']);
+        $this->assertSame('Mga medical device o catheter: Walay gitaho.', $visit->answers['medical_devices']);
+    }
+
     public function test_resolved_both_reply_receives_prior_clarification_context_and_advances(): void
     {
         $visit = $this->startChat();

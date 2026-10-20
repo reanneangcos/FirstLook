@@ -77,13 +77,16 @@ class ScreeningOutputTest extends TestCase
 
     public function test_none_reported_is_accepted_as_an_explicit_absence(): void
     {
-        $patient = PatientFields::only(MockScreening::input()['patient']);
-        $patient['allergies'] = 'None reported';
-        $output = MockScreening::output(4);
-        $output['extracted_facts'][1] = ['field' => 'allergies', 'state' => 'absent',
-            'value' => 'None reported', 'evidence' => 'None reported'];
+        foreach (['None reported', 'Walay gitaho', 'Walang naiulat',
+            'Known allergies: None reported.', 'Mga medical device o catheter: Walay gitaho.'] as $value) {
+            $patient = PatientFields::only(MockScreening::input()['patient']);
+            $patient['allergies'] = $value;
+            $output = MockScreening::output(4);
+            $output['extracted_facts'][1] = ['field' => 'allergies', 'state' => 'absent',
+                'value' => $value, 'evidence' => $value];
 
-        $this->assertSame($output, (new ScreeningOutput)->parse(json_encode(MockScreening::envelope($output)), $patient));
+            $this->assertSame($output, (new ScreeningOutput)->parse(json_encode(MockScreening::envelope($output)), $patient));
+        }
     }
 
     public function test_none_reported_cannot_be_reclassified_as_unknown(): void

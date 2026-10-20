@@ -21,7 +21,8 @@ export function patientValue(value: string | number | null | undefined) {
         const normalized = value.trim().toLowerCase();
         if (
             normalized.replace(/[.]+$/, '') === 'none reported' ||
-            /:\s*none reported(?:[.!?]|$)/u.test(normalized)
+            ['walay gitaho', 'walang naiulat'].includes(normalized.replace(/[.]+$/, '')) ||
+            /:\s*(?:none reported|walay gitaho|walang naiulat)(?:[.!?]|$)/u.test(normalized)
         ) {
             return 'None';
         }
