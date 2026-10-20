@@ -25,7 +25,7 @@ class DraftPatientMappingsTest extends TestCase
     {
         $rules = (new ProvisionalEsiRuleCatalog(DraftPatientMappings::definitions()))->rules();
         $this->assertCount(18, $rules);
-        $this->assertEqualsCanonicalizing([1, 2, 3, 4, 5], array_unique(array_column($rules, 'priority')));
+        $this->assertEqualsCanonicalizing([1, 2, 3, 4, 5], array_values(array_unique(array_column($rules, 'priority'))));
         foreach (DraftPatientMappings::proposals() as $id => $proposal) {
             $this->assertFalse($rules[$id]['approved']);
             $this->assertSame('pending_review', $rules[$id]['reviewer_approval']['status']);
@@ -43,7 +43,7 @@ class DraftPatientMappingsTest extends TestCase
                 }
             }
         }
-        config(['triage.api_key' => 'mock-only']);
+        config(['triage.api_key' => 'mock-only', 'esi.provisional_approvals' => []]);
         $report = app(StudyProtocol::class)->readiness();
         $this->assertFalse($report['ready']);
         $this->assertSame('provisional_patient_report', $report['active_mode']);
@@ -76,6 +76,7 @@ class DraftPatientMappingsTest extends TestCase
 
     public function test_review_report_shows_concepts_sources_and_blank_review_fields(): void
     {
+        config(['esi.provisional_approvals' => []]);
         $this->assertSame(0, Artisan::call('esi:patient-preview', ['--markdown' => true]));
         $report = Artisan::output();
         $this->assertStringContainsString('Status: unvalidated proposals', $report);
@@ -86,6 +87,49 @@ class DraftPatientMappingsTest extends TestCase
         $this->assertStringContainsString('do not cover every possible condition', $report);
         $this->assertStringNotContainsString('wording remain to be specified', $report);
         $this->assertDatabaseCount('screening_sessions', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_recorded_verbal_approval_preserves_user_report_provenance_without_claiming_a_signature(): void
+    {
+        config(['triage.api_key' => 'mock-only']);
+        $protocol = app(StudyProtocol::class);
+        $this->assertTrue($protocol->readiness()['ready']);
+        $this->assertSame(18, $protocol->readiness()['approved_rule_count']);
+        foreach ($protocol->catalog()->rules() as $rule) {
+            $approval = $rule['reviewer_approval'];
+            $this->assertTrue($rule['approved']);
+            $this->assertSame('verbal', $approval['approval_method']);
+            $this->assertSame('user_report', $approval['evidence_type']);
+            $this->assertFalse($approval['direct_reviewer_confirmation']);
+            $this->assertNull($approval['signed_record_reference']);
+            $this->assertSame('2026-10-20', $approval['reviewed_at']);
+        }
+        $this->assertSame(0, Artisan::call('esi:patient-preview', ['--markdown' => true]));
+        $report = Artisan::output();
+        $this->assertStringContainsString('18 of 18 configured rules have current approval records', $report);
+        $this->assertStringContainsString('Abigail Rose Gayatin-Sabandal, PHRN, USRN', $report);
+        $this->assertStringContainsString('verbal; evidence: user_report', $report);
+        $this->assertStringNotContainsString('No clinical approvals have been recorded', $report);
+        $this->assertStringNotContainsString('Abigail', $protocol->prompt());
+        $this->assertDatabaseCount('screening_sessions', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_reported_approval_does_not_extend_to_changed_or_new_definitions(): void
+    {
+        config(['triage.api_key' => 'mock-only']);
+        $definition = config('esi.provisional_rules.DRAFT-C-REFILL');
+        $definition['explanation'] .= ' Changed only in this test.';
+        config(['esi.provisional_rules.DRAFT-C-REFILL' => $definition,
+            'esi.provisional_rules.TEST-ADDED-AFTER-REVIEW' => $definition]);
+        $protocol = app(StudyProtocol::class);
+        $rules = $protocol->catalog()->rules();
+        $this->assertFalse($rules['DRAFT-C-REFILL']['approved']);
+        $this->assertFalse($rules['TEST-ADDED-AFTER-REVIEW']['approved']);
+        $this->assertSame('pending_review', $rules['TEST-ADDED-AFTER-REVIEW']['reviewer_approval']['status']);
+        $this->assertFalse($protocol->readiness()['ready']);
+        $this->assertSame(17, $protocol->readiness()['approved_rule_count']);
         Http::assertNothingSent();
     }
 }

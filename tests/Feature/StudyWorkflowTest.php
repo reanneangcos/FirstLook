@@ -103,8 +103,9 @@ class StudyWorkflowTest extends TestCase
         return $output;
     }
 
-    public function test_current_unreviewed_configuration_is_blocked_without_requests_or_writes(): void
+    public function test_unreviewed_configuration_is_blocked_without_requests_or_writes(): void
     {
+        config(['esi.provisional_approvals' => []]);
         $report = app(StudyProtocol::class)->readiness();
         $this->assertFalse($report['ready']);
         $this->assertSame(18, $report['rule_count']);

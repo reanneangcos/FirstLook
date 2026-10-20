@@ -4,9 +4,11 @@
 
 The clinical catalog now identifies the **2012 Edition, AHRQ Publication 12-0014 (November 2011)** cited in the thesis. Its version is `esi-v4-adult-1.3.0`. Source references now use the corresponding chapters and printed pages. The earlier supplied `Esi_Handbook.pdf` was the May 2005 edition; that file and previously saved results have not been changed. No hash from the 2005 file is presented as a hash of the 2012 source.
 
-`config/esi.php` still selects `handbook_pre_screening`. This engine executes explicit clinical A/B/C assessments with a separately reviewed provisional D branch. It does not silently turn narrative symptoms into those assessments. The patient-report alternative executes reviewed exact-text conditions and exclusions using the 15 allowed fields.
+`config/esi.php` selects `provisional_patient_report`. Luna returns verbatim `extracted_facts` plus language-independent `normalized_facts`. The patient-report engine checks concept identifiers and states in A/B/C order. It does not compare patient sentences against English templates or ask Luna for clinical risk judgments, resource counts or Method B priorities. The separate handbook/clinical engines still require explicit clinical assessments.
 
-**Current blocker:** 18 patient-response mappings are now configured as unvalidated drafts; none has clinical approval. Their A/B exclusion bundles, resource expectations and wording need review. The final-study command blocks them before any API request. Software tests do not establish clinical validity.
+**Recorded review:** the project user reported verbal approval by **Abigail Rose Gayatin-Sabandal, PHRN, USRN**, dated **2026-10-20**, for the current rule layer. `config/esi.php` records this against the 18 current patient-report definitions under internal record ID `FIRSTLOOK-REPORTED-VERBAL-2026-10-20-01`. The evidence is the user's report in the project chat; no direct reviewer statement or signed document was supplied. No revisions or exceptions were supplied. The record's scope follows the user's statement about the current layer.
+
+The approval version and definition hashes are fixed: changed definitions or concept meanings invalidate approval, and new rules do not inherit it. These records enable matching current rules in Method B; they do not establish measured clinical accuracy, complete condition coverage, or multilingual extraction accuracy. Development pre-testing and the study's dataset-release and pilot records still precede the final frozen experiment.
 
 Read-only checks:
 
@@ -38,7 +40,7 @@ The provisional display is **“Most likely ESI 3 - nurse evaluation and vital s
 
 The handbook source for A/B/C is Chapter 2, printed pp. 8-14; resource definitions are in Chapter 4, pp. 29-31. Deferring D is a **study adaptation**, informed by Chapter 2, p. 14 and Chapter 5, pp. 35-37, and needs its own review. In the separate clinical mode, HR >100/min, RR >20/min or oxygen saturation <92% prompts consideration of ESI 2 with clinical judgment; it does not automatically assign ESI 2.
 
-**Input boundary for the nurse:** the chatbot currently extracts verbatim excerpts from 15 patient fields. Those excerpts do not themselves establish `immediate_lifesaving_intervention_required`, the three B assessments, or `expected_esi_resources`. The clinical engine accepts documented assessments; preview vignettes supply them explicitly to test the rules. Such assessments cannot silently be added to the patient-only experiment. Nurse review must decide which exact reported conditions can support the required positive/negative facts and resource estimate. The rules are now specified; patient-fact mappings and clinical approval remain incomplete. Existing validated case labels can be retained.
+**Input boundary for the nurse:** the chatbot currently extracts verbatim excerpts from 15 patient fields. Those excerpts do not themselves establish `immediate_lifesaving_intervention_required`, the three B assessments, or `expected_esi_resources`. The clinical engine accepts documented assessments; preview vignettes supply them explicitly to test the rules. Such assessments cannot silently be added to the patient-only experiment. The patient-report mappings specify the proposed positive/negative conditions and resource rationale. Their recorded review provenance is described above; software checks cannot verify their medical adequacy. Existing validated case labels remain unchanged.
 
 Tests already performed/requested and devices in place remain context. They do not automatically become expected-resource counts. CBC plus urinalysis is one laboratory resource; CBC plus X-ray is two types. History/examination, point-of-care tests, oral medication, prescription refills, tetanus immunization and simple wound care are not counted resources (Table 4-1). An incomplete workup list cannot establish zero or exactly one resource.
 
@@ -68,9 +70,9 @@ If no valid pairs exist, conditional comparison is **not estimable**. Report cov
 
 ## Current status
 
-The selectable `provisional_patient_report` mode uses `ProvisionalEsiRuleLayer`. After mappings are reviewed and configured, it can operate on patient reports without measured vital signs. It records provisional predictions with `decision_d.status = not_assessed`. It is not the active default.
+The selectable `provisional_patient_report` mode uses `ProvisionalEsiRuleLayer`. After mappings are reviewed and configured, it can operate on patient reports without measured vital signs. It records provisional predictions with `decision_d.status = not_assessed`. It is the active default; unapproved rules still cannot classify.
 
-**No clinical mappings are approved or active in patient decisions.** `config/esi.php` now obtains 18 definitions from `DraftPatientMappings`; `provisional_approvals` remains empty. The existing validated case labels have not been changed or used to generate these proposals. Current patient submissions still use `handbook_pre_screening`. Selecting the patient-report mode alone will not approve the drafts. Software fixtures and preview candidates must not become clinical approval records or final-study results.
+**The 18 current patient-report mappings have recorded approval based on the user's report of verbal review.** `config/esi.php` obtains their definitions from `DraftPatientMappings` and stores approval records separately. The original `DRAFT-*` identifiers and proposal text are retained so recording approval does not rewrite the reviewed conditions. They identify proposal history, not a claim of performance validation. The existing validated case labels have not been changed or used to generate these proposals. Current patient submissions can classify when the required evidence matches an approved definition. Missing facts and unmatched presentations still produce Needs Review. Software fixtures and preview candidates are never final-study results.
 
 The existing `EsiV4RuleLayer` remains available under `esi.mode = clinical_esi_v4`. Its A–D assessments and measured-vitals requirement are unchanged. The selectable `provisional_patient_report` method is a separate study adaptation and cannot be described as complete clinical ESI v4.
 
@@ -86,17 +88,21 @@ The existing `EsiV4RuleLayer` remains available under `esi.mode = clinical_esi_v
 | C / 4 | Isolated ankle-injury profile; narrow urinary-symptom profile; isolated finger-cut profile | Tables 4-1/4-2, pp. 30–33; Chapter 9, cases 13/21 |
 | C / 5 | Routine blood-pressure prescription refill; simple dressing recheck | Tables 4-1/4-2, pp. 30 and 33 |
 
-The catalogue records exact positive conditions, proposed earlier-decision exclusions, resource rationale, source location and the clinical information omitted from the source examples. It does not infer a diagnosis, normal vital signs or an actual resource count. C profiles encode a proposed resource-related expectation, which is separately identified for review; a requested/completed test or existing device cannot supply it.
+The catalogue records positive concept conditions, proposed earlier-decision exclusions, resource rationale, source location and the clinical information omitted from the source examples. It does not infer a diagnosis, normal vital signs or an actual resource count. C profiles encode a proposed resource-related expectation, which is separately identified for review; a requested/completed test or existing device cannot supply it.
 
-The shared A/B exclusion sentences are **unvalidated proposals**, not a proven clinical screening instrument. A broad denial of symptoms does not establish absence of every high-risk condition. Each mapping requires a nurse to review whether its proposed exclusions and context are adequate; a signature on the handbook's decision-order diagram alone does not approve these adaptations.
+The shared A/B exclusion concepts have the reported review provenance above; they have no measured validation findings from the final study yet. They require explicit positive or negative reports; a generic denial cannot be expanded into individual denials. The C profiles include explicit negatives for the listed B presentations so a missing rule match cannot clear B. A broad denial of symptoms does not establish absence of every high-risk condition. Review applies to the specific mapping's exclusions and context; approval of the handbook's decision-order diagram alone does not approve these adaptations.
 
-The wording currently contains English review specimens only. Matching requires the entire accepted evidence excerpt and its state. Unlisted synonyms, Tagalog, Bisaya and code-switch phrasing may abstain. The LLM still handles multilingual input in its existing workflow, but the deterministic rules do not silently translate or infer equivalence. Add and review exact language equivalents before freezing any study that depends on these mappings.
+Luna interprets English, Tagalog, Bisaya, code-switching, synonyms and clear typos into one concept vocabulary. For example, a reported headache uses `headache` regardless of the source language. Each concept has a state and verbatim evidence anchors into accepted source excerpts. The rule layer consumes those concepts without maintaining translation or typo dictionaries. Ambiguous interpretations stay unknown; incompatible reports stay contradictory. Original-language evidence is never translated or overwritten.
+
+The new output contract is `screening-v2-normalized`, with validator `evidence-v3-normalized` and vocabulary `patient-concepts-v1`. The exploratory prompt is `screening-v0.7-normalized-facts`; its Method A decision instructions remain the baseline instructions. The added extraction requirements can affect future model behavior, so this is a new version, not evidence that old and new predictions are interchangeable. Historical prompts, records and results are not rewritten.
+
+`NormalizedPatientFacts` constrains concept names, states and evidence provenance. It excludes decision labels, clinical high-risk judgments, diagnoses, measured vitals and resource estimates from the vocabulary. Tests/devices cannot provide normalized symptom evidence. These checks do not prove semantic correctness: mocked multilingual tests establish the software contract, not Luna's measured extraction accuracy. Unsupported reported symptoms are retained as `unmapped_symptom` and block lower-priority resource classification. The 18 profiles are still not exhaustive clinical coverage.
 
 ### Preview and review report
 
-`esi:patient-preview` produces 18 deliberately constructed matching examples plus six unresolved examples: missing A/B exclusions, pain score alone, tests/devices alone, an unlisted presentation, contradictory exclusion wording and a non-adult input. These are software demonstrations, not DEV results, validation findings or evidence of coverage. Every result keeps `priority=null`, `status=draft_preview` and `study_eligible=false`; a proposed level appears only in `candidate_priority`. Normal evaluation continues to require approval of the exact definition hash.
+`esi:patient-preview` produces 18 deliberately constructed matching examples plus six unresolved examples: missing A/B exclusions, pain score alone, tests/devices alone, an unlisted presentation, contradictory concepts and a non-adult input. These are software demonstrations, not DEV results, validation findings or evidence of coverage. Every result keeps `priority=null`, `status=draft_preview` and `study_eligible=false`; a proposed level appears only in `candidate_priority`. Normal evaluation continues to require approval of the exact definition hash.
 
-Use `--markdown` for a readable report containing each rule's conditions and blank review fields. Use `--json` for the full audit traces, or `--input=/path/to/fictional-facts.json` for one list of up to 15 already-extracted fictional facts. No option performs an LLM call, records a nurse approval, or writes to the patient/study database.
+Use `--markdown` for a readable report containing each rule's conditions, current approval provenance, and fields for subsequent review. Use `--json` for the full audit traces, or `--input=/path/to/fictional-facts.json` for a JSON object containing `extracted_facts` (up to 15 fields) and `normalized_facts` (concepts and evidence). No option performs an LLM call, creates a nurse approval, or writes to the patient/study database.
 
 The review exports are under `storage/app/private/studies/review/`. The `patient-mapping-drafts.md` report is intended for the nurse; `patient-mapping-drafts.json` contains the machine-readable definitions and traces.
 
@@ -162,15 +168,15 @@ The executable handbook preview specifies clinical decisions and the provisional
 ## What the code checks
 
 1. Facts must come from the accepted extraction and use the existing patient-field allowlist. The current rule scope requires an explicit adult age. Duplicate fields cannot classify.
-2. Rules run in A, B, C order. A maps to 1; B to 2; C to 3, 4 or 5. A later rule cannot bypass an unresolved earlier candidate.
+2. Rules run in A, B, C order. A maps to 1; B to 2; C to 3, 4 or 5. The first concept in a profile identifies its presentation. A reported presentation with missing context blocks later decisions. An unmentioned presentation stays unresolved and is never treated as a negative assessment; later rules must independently satisfy their explicit A/B exclusions.
 3. A B mapping requires explicit exclusion conditions for A. A C mapping requires exclusion conditions for both A and B. A failed match is never an exclusion.
-4. Every condition checks the exact field state and a reviewed complete text value. Missing, unknown, not-applicable and explicitly absent remain distinct. No substring matching, implicit translation or inferred normal vitals occurs.
+4. Current conditions check a concept identifier and required state. Missing, unknown, not-applicable, contradictory and explicitly absent remain distinct. Evidence anchors preserve original text. Legacy field-condition support remains for existing configurations and software fixtures; the current 18 definitions contain only concept conditions.
 5. A C mapping needs a documented resource-related rationale. Tests and devices never become resource counts automatically. The software does not judge whether a clinician's rationale is medically adequate; that is the rule review's purpose.
 6. Applicable conflicting priorities or unresolved required facts return Needs Review. Optional history does not automatically block a supported rule.
-7. Approval must identify the reviewer, date, record, engine version and exact definition hash. Editing a rule invalidates the old approval. Full definitions and approval records affect the persisted rule version.
-8. Both methods use the same accepted facts. Method B never receives Method A's label or explanation and never calls the LLM. Existing saved screenings remain unchanged.
+7. Approval must identify the reviewer, date, record, engine version and exact definition hash. Editing a rule or the concept vocabulary invalidates old approvals. Definitions, concept meanings and approval records affect the persisted rule version.
+8. Both methods share the accepted understanding from one LLM response. `method_b_input` stores verbatim and normalized facts plus an empty clinical-assessment object. Method B never receives Method A's label or explanation and never calls the LLM. Existing saved screenings remain unchanged.
 
-Exact text matching is intentionally conservative and may have low coverage across different phrasing. Do not claim semantic matching. Add equivalent values only through development and review, without using held-out test wording to tune rules.
+Evaluate whether different wording yields equivalent concepts using development data only. Do not tune prompts, concept definitions or rules against held-out test wording or labels. Clinical review concerns the meaning and adequacy of the decision conditions; it does not require enumerating every possible translation or typo.
 
 ## Rule specification to complete with the reviewer
 
@@ -180,7 +186,7 @@ Prepare one row or record per general mapping. This is a review of the decision 
 | --- | --- |
 | Rule ID | Stable identifier independent of a dataset case ID |
 | Decision point and output | A/1, B/2, or C/3–5, always provisional |
-| Supporting conditions | Existing patient field, explicit state and accepted complete value(s) |
+| Supporting conditions | Standardized patient concept, explicit required state and evidence provenance |
 | Earlier-decision exclusions | Explicit conditions for A when returning 2; for A and B when returning 3–5 |
 | Source | Handbook chapter and printed page, with the relevant clinical concept |
 | Adaptation rationale | Why the permitted patient-reported facts support this provisional prediction and what remains unassessed |
@@ -197,7 +203,7 @@ Each entry in `esi.provisional_rules` is keyed by rule ID and contains exactly:
 ```text
 decision_point: A, B or C
 priority: integer 1–5 consistent with the decision point
-conditions: nonempty list of {field, state, values: [complete accepted strings]}
+conditions: ordered nonempty list of {concept, state}; first concept identifies the presentation
 exclusions: {} for A; {A: conditions} for B; {A: conditions, B: conditions} for C
 handbook_section: source chapter and printed page
 adaptation_rationale: documented reason for the study adaptation
@@ -205,16 +211,16 @@ resource_rationale: required text for C; null for A/B
 explanation: brief non-diagnostic result explanation
 ```
 
-Conditions in a list are joined with AND; values within one condition are alternatives. At least one supporting condition must use the complaint or symptom fields. Accepted condition states are `reported`, `absent`, and `not_applicable`; uncertainty cannot satisfy a condition. Patient data cannot set approval or configuration.
+Conditions in a list are joined with AND. Concept identifiers come from `NormalizedPatientFacts`; they describe reports, not clinical decisions. Legacy `{field, state, values}` conditions remain supported for older configurations. Accepted condition states are `reported`, `absent`, and `not_applicable`; uncertainty cannot satisfy a condition. Patient data cannot set approval or configuration.
 
-Each corresponding entry in `esi.provisional_approvals` records `status`, `reviewer`, `reviewed_at` (YYYY-MM-DD), `record_id`, `rule_version`, and `definition_hash`. The engine version is `ProvisionalEsiRuleCatalog::VERSION`; the hash is calculated with `ProvisionalEsiRuleCatalog::definitionHash($definition)`. This hash links an approval to exact content; it is not proof of clinical review. Keep the underlying review document.
+Each corresponding entry in `esi.provisional_approvals` records `status`, `reviewer`, `reviewed_at` (YYYY-MM-DD), `record_id`, `rule_version`, and `definition_hash`. The engine version is `ProvisionalEsiRuleCatalog::VERSION`; the hash is calculated with `ProvisionalEsiRuleCatalog::definitionHash($definition)` when recording the review, then saved as a literal. Never recalculate an approval's hash automatically on application startup. This hash links an approval to exact content; it is not proof of clinical review. Preserve whether the underlying evidence is written, direct verbal confirmation, or a user's report of verbal approval. The current records explicitly use `approval_method=verbal`, `evidence_type=user_report`, `direct_reviewer_confirmation=false`, and `signed_record_reference=null`.
 
 ## Next steps in order
 
 1. **Protect the existing reference dataset.** Preserve its labels. Have the custodian establish the paper's canonical-case development/test split before prompt or rule tuning. Do not expose final-test labels for rule construction.
-2. **Complete the rule specification.** Use the handbook and development cases to draft general mappings, including ESI 3 and earlier-decision exclusions. Have the clinical reviewer approve those conditions and their provisional interpretation. Record rejected or unsupported mappings too. Do not invent review records or backfill rationales as if they were part of the original validation.
+2. **Keep the review record linked to the rules.** The current 18 mappings have a recorded user report of verbal approval. Record any requested revisions or rejected mappings; changed rules require a new review record tied to their new hashes. Do not present this record as a signed document or as original dataset validation.
 3. **Enter only approved mappings and pre-test development cases.** Start with the paper's 10 pilot cases in the development set. Examine matched rules, missing facts, no-match cases, unsupported phrasing and conflicts. Software tests may be run now with `php artisan test --compact tests/Unit/ProvisionalEsiRuleLayerTest.php tests/Feature/EsiRuleIntegrationTest.php tests/Unit/EsiV4RuleLayerTest.php`. They verify implementation, not clinical accuracy.
-4. **Freeze the comparison.** The final runner uses `screening-study-v1`, which inserts the same reviewed definitions used by B into A's prompt. A still decides independently; B receives only A's accepted extracted facts. The exploratory chatbot/DEV prompt and saved A outputs remain unchanged. The freeze records the exact criteria, approval records, prompt/schema/code hashes, model settings, dataset hash and separate reference-key hash. Any subsequent configuration or code change prevents resuming that experiment.
+4. **Freeze the comparison.** The final runner uses `screening-study-v2`, which inserts the same reviewed definitions used by B into A's prompt. A still decides independently; B receives only A's accepted extracted facts. Saved A outputs remain unchanged. New chatbot/DEV outputs use the versioned normalized-extraction prompt. The freeze records the exact criteria, approval records, prompt/schema/code hashes, model settings, dataset hash and separate reference-key hash. Any subsequent configuration or code change prevents resuming that experiment.
 5. **Run and score the frozen comparison.** The commands below now implement three fresh repetitions, saved separately. Accepted Needs Review outputs are not retried. Technical/schema failures use the existing maximum of three attempts; interrupted records stop for inspection. Resuming skips all saved terminal outcomes, including failures, and fills only missing versions. Each record has a separate patient stub and structured-submission transcript in the admin dashboard. It is not represented as a multi-turn patient conversation.
 
 ## Final evaluation commands

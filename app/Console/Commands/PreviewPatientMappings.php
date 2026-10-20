@@ -47,7 +47,7 @@ class PreviewPatientMappings extends Command
                 $examples[] = ['id' => $id, 'input' => $input, 'result' => $engine->preview($input['extracted_facts'], $input['normalized_facts'])];
             }
         }
-        $report = ['purpose' => 'UNVALIDATED drafts for nurse review. Constructed examples demonstrate execution, not clinical accuracy or dataset coverage.',
+        $report = ['purpose' => 'Patient-report rule review. Constructed examples demonstrate execution, not clinical accuracy or dataset coverage. Approval provenance is recorded separately for each rule.',
             'study_eligible' => false, 'writes_database' => false, 'calls_llm' => false,
             'draft_version' => DraftPatientMappings::VERSION, 'rule_version' => $catalog->version(),
             'concept_definitions' => NormalizedPatientFacts::definitions(), 'rules' => $catalog->rules(), 'proposals' => DraftPatientMappings::proposals(), 'examples' => $examples,
@@ -72,8 +72,12 @@ class PreviewPatientMappings extends Command
 
     private function markdownReport(array $report): string
     {
-        $lines = ['# FirstLook: draft patient-response mappings', '',
-            '**Status: unvalidated proposals. No clinical approvals have been recorded.**', '',
+        $approvedCount = count(array_filter($report['rules'], fn (array $rule): bool => $rule['approved']));
+        $status = $approvedCount === 0
+            ? 'Status: unvalidated proposals. No current approvals are recorded.'
+            : 'Status: '.$approvedCount.' of '.count($report['rules']).' configured rules have current approval records. See the provenance below; approval records do not establish measured clinical accuracy.';
+        $lines = ['# FirstLook: patient-response rule review', '',
+            '**'.$status.'**', '',
             'Draft version: `'.$report['draft_version'].'`. Rule version: `'.$report['rule_version'].'`.', '',
             'These are selected handbook examples adapted to patient reports. They do not cover every possible condition. '
                 .'Luna normalizes language and clear typos into shared concepts. The concept meanings and proposed A/B exclusions require clinical review. '
@@ -86,7 +90,7 @@ class PreviewPatientMappings extends Command
                 .'A candidate 3 always leaves Decision D unassessed and requires nurse evaluation and vital signs.', '',
             '## How to review', '',
             'For each rule, confirm or revise the positive conditions, earlier-decision exclusions and expected-resource rationale. '
-                .'Record unsupported situations and ambiguous concept definitions. Test multilingual extraction separately. Mark approve/revise/reject and retain the signed review with reviewer name, date, record ID and exact definition hash. '
+                .'Record unsupported situations and ambiguous concept definitions. Test multilingual extraction separately. Mark approve/revise/reject and retain the review record with its evidence type, reviewer name, date, record ID and exact definition hash. '
                 .'A validated dataset label is not a substitute for this review.', ''];
         foreach ($report['rules'] as $id => $rule) {
             $proposal = $report['proposals'][$id] ?? [];
@@ -94,6 +98,14 @@ class PreviewPatientMappings extends Command
             $lines[] = '';
             $lines[] = '- Decision: '.$rule['decision_point'].'; proposed candidate: '.($rule['priority'] === 3 ? 'provisional ESI 3' : 'ESI '.$rule['priority']).'.';
             $lines[] = '- Review status: '.$rule['reviewer_approval']['status'].'.';
+            if ($rule['reviewer_approval']['reviewer'] !== null) {
+                $approval = $rule['reviewer_approval'];
+                $lines[] = '- Reviewer: '.$approval['reviewer'].'; review date: '.$approval['reviewed_at'].'.';
+                $lines[] = '- Approval method: '.($approval['approval_method'] ?? 'unspecified').'; evidence: '.($approval['evidence_type'] ?? 'unspecified').'.';
+                $lines[] = '- Record ID: `'.$approval['record_id'].'`.';
+                $lines[] = '- Provenance: '.($approval['evidence_reference'] ?? 'See retained review record.');
+                $lines[] = '- Current definition approved: '.($rule['approved'] ? 'yes' : 'no; the recorded approval does not cover this definition').'.';
+            }
             $lines[] = '- Source location: '.$rule['handbook_section'].'.';
             $lines[] = '- Definition hash: `'.ProvisionalEsiRuleCatalog::definitionHash(config('esi.provisional_rules')[$id]).'`.';
             $lines[] = '';
@@ -148,7 +160,7 @@ class PreviewPatientMappings extends Command
         }
         $abdominal = $examples['DRAFT-C-RIGHT-LOWER-ABDOMEN'];
         $abdominal['normalized_facts'] = array_values(array_filter($abdominal['normalized_facts'],
-            fn (array $fact): bool => !in_array($fact['concept'], ['breathing_without_help', 'responds_to_voice'], true)));
+            fn (array $fact): bool => ! in_array($fact['concept'], ['breathing_without_help', 'responds_to_voice'], true)));
         $examples['NO-A-B-EXCLUSION'] = $abdominal;
         $examples['PAIN-SCORE-ALONE'] = ['extracted_facts' => [$this->fact('age', '34'), $this->fact('reported_severity', '10/10')], 'normalized_facts' => []];
         $examples['TESTS-AND-DEVICE-ONLY'] = ['extracted_facts' => [$this->fact('age', '34'),
@@ -157,6 +169,7 @@ class PreviewPatientMappings extends Command
         $examples['CONTRADICTORY-EXCLUSION'] = $this->fixture(['breathing' => 'contradictory']);
         $examples['NON-ADULT'] = $examples['DRAFT-C-ANKLE'];
         $examples['NON-ADULT']['extracted_facts'][0] = $this->fact('age', '12');
+
         return $examples;
     }
 
@@ -170,6 +183,7 @@ class PreviewPatientMappings extends Command
             $normalized[] = ['concept' => $concept, 'state' => $state,
                 'evidence' => [['field' => 'symptom_description', 'quote' => $quote]]];
         }
+
         return ['extracted_facts' => [$this->fact('age', '34'), $this->fact('symptom_description', implode(' ', $quotes))],
             'normalized_facts' => $normalized];
     }

@@ -2,8 +2,8 @@
 
 namespace App\Services\TriageRules;
 
-use App\Services\Screening\PatientFields;
 use App\Services\Screening\NormalizedPatientFacts;
+use App\Services\Screening\PatientFields;
 
 final class ProvisionalEsiRuleCatalog
 {
@@ -116,6 +116,7 @@ final class ProvisionalEsiRuleCatalog
                     || ! in_array($condition['state'] ?? null, ['reported', 'absent', 'not_applicable'], true)) {
                     return false;
                 }
+
                 continue;
             }
             if (! is_array($condition) || count($condition) !== 3

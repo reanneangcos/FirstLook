@@ -2,9 +2,9 @@
 
 namespace App\Services\TriageRules;
 
-use App\Services\Screening\PatientFields;
-use App\Services\Screening\NormalizedPatientFacts;
 use App\Services\Screening\InvalidModelOutput;
+use App\Services\Screening\NormalizedPatientFacts;
+use App\Services\Screening\PatientFields;
 
 final class ProvisionalEsiRuleLayer implements RuleLayer
 {
@@ -60,6 +60,7 @@ final class ProvisionalEsiRuleLayer implements RuleLayer
             || $this->conflictingConcepts($concepts)) {
             $result = $this->result([], null, 'Reported concepts contain an unresolved contradiction. Clarify the original patient statements.', 'input');
             $result['conflicting_evidence'] = $normalizedFacts;
+
             return $result;
         }
         $age = $facts['age'] ?? [];
@@ -123,6 +124,7 @@ final class ProvisionalEsiRuleLayer implements RuleLayer
                         'state' => $state, 'evidence' => $concept['evidence'] ?? [],
                         'matches' => $available ? $state === $condition['state'] : null,
                         'issue' => $available ? null : $condition['concept'].':'.$state];
+
                     continue;
                 }
                 $fact = $facts[$condition['field']] ?? null;
@@ -193,6 +195,7 @@ final class ProvisionalEsiRuleLayer implements RuleLayer
                 return true;
             }
         }
+
         return false;
     }
 

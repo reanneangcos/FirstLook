@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\ScreeningSession;
 use App\Services\Screening\InvalidModelOutput;
 use App\Services\Screening\NormalizedPatientFacts;
 use App\Services\Screening\PatientFields;
@@ -22,6 +21,8 @@ use Tests\TestCase;
 class NormalizedPatientFactsTest extends TestCase
 {
     use RefreshDatabase;
+
+    private const A_REPORT = 'Breathing without help now, responding to voice, and no uncontrolled bleeding.';
 
     protected function setUp(): void
     {
@@ -47,15 +48,16 @@ class NormalizedPatientFactsTest extends TestCase
         $history = 'No history of headaches.';
         $facts = [$this->fact('age', '34'), $this->fact('main_complaint', $complaint),
             $this->fact('symptom_description', $description), $this->fact('known_conditions', $history, 'absent'),
-            $this->fact('other_symptoms', DraftPatientMappings::A_REPORT)];
+            $this->fact('other_symptoms', self::A_REPORT)];
+
         return ['extracted_facts' => $facts, 'normalized_facts' => [
             $this->concept('headache', 'main_complaint', $complaint),
             $this->concept('worst_ever_headache', 'symptom_description', $description),
             $this->concept('sudden_onset', 'symptom_description', $description),
             $this->concept('previous_headaches', 'known_conditions', $history, 'absent'),
-            $this->concept('breathing_without_help', 'other_symptoms', DraftPatientMappings::A_REPORT),
-            $this->concept('responds_to_voice', 'other_symptoms', DraftPatientMappings::A_REPORT),
-            $this->concept('uncontrolled_bleeding', 'other_symptoms', DraftPatientMappings::A_REPORT, 'absent'),
+            $this->concept('breathing_without_help', 'other_symptoms', self::A_REPORT),
+            $this->concept('responds_to_voice', 'other_symptoms', self::A_REPORT),
+            $this->concept('uncontrolled_bleeding', 'other_symptoms', self::A_REPORT, 'absent'),
         ]];
     }
 
@@ -73,6 +75,7 @@ class NormalizedPatientFactsTest extends TestCase
                 'reviewed_at' => '2026-10-20', 'record_id' => 'TEST ONLY', 'rule_version' => ProvisionalEsiRuleCatalog::VERSION,
                 'definition_hash' => ProvisionalEsiRuleCatalog::definitionHash($definition)];
         }
+
         return $approvals;
     }
 
@@ -80,6 +83,7 @@ class NormalizedPatientFactsTest extends TestCase
     {
         Artisan::call('esi:patient-preview', ['--json' => true]);
         $report = json_decode(Artisan::output(), true, 64, JSON_THROW_ON_ERROR);
+
         return array_values(array_filter($report['examples'], fn (array $example): bool => $example['id'] === $id))[0]['input'];
     }
 
@@ -133,7 +137,7 @@ class NormalizedPatientFactsTest extends TestCase
         $this->assertDatabaseCount('screening_sessions', 2);
         Http::assertSentCount(2);
         Http::assertSent(fn ($request): bool => str_contains($request['input'][0]['content'], 'clearly understandable typos')
-            && !str_contains($request['input'][0]['content'], '{{normalization_instructions}}')
+            && ! str_contains($request['input'][0]['content'], '{{normalization_instructions}}')
             && in_array('normalized_facts', $request['text']['format']['schema']['required'], true));
     }
 

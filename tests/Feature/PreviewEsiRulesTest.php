@@ -46,6 +46,7 @@ class PreviewEsiRulesTest extends TestCase
 
     public function test_selectable_handbook_adaptation_uses_its_own_mode_without_activating_approvals(): void
     {
+        config(['esi.mode' => 'handbook_pre_screening']);
         $engine = app(RuleLayer::class);
         $this->assertInstanceOf(EsiV4RuleLayer::class, $engine);
         $this->assertStringContainsString('-provisional-d+', $engine->version());

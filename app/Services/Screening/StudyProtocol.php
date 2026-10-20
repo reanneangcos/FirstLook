@@ -165,7 +165,7 @@ final class StudyProtocol
             'coverage_limits' => ['Selected adult handbook examples, not all possible conditions.',
                 'Luna normalizes languages and clear typos into the same concept vocabulary; extraction accuracy needs evaluation.',
                 'Rules compare concept identifiers and states; original-language evidence is retained for audit.',
-                'The A/B negative-report bundles and C resource profiles are unvalidated adaptations.',
+                'A/B negative-report bundles and C resource profiles are study adaptations; review provenance is stored per rule and does not establish measured clinical accuracy.',
                 'Unknown, conflicting or unmatched required information remains Needs Review.'],
             'concept_definitions' => NormalizedPatientFacts::definitions(),
             'instruction' => 'Review clinical meanings, conditions and exclusions, not phrase lists or TEST labels. Record rationale, reviewer, date, record ID and exact definition hash. Evaluate language extraction separately. No approval is created by this export.'];
