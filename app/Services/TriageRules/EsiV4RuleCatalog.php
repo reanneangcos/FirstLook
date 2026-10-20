@@ -4,7 +4,7 @@ namespace App\Services\TriageRules;
 
 final class EsiV4RuleCatalog
 {
-    public const VERSION = 'esi-v4-adult-1.2.0';
+    public const VERSION = 'esi-v4-adult-1.3.0';
 
     public const PROVISIONAL_THREE_LABEL = 'Most likely ESI 3 - nurse evaluation and vital signs required';
 
@@ -13,14 +13,15 @@ final class EsiV4RuleCatalog
     public const HANDBOOK = 'https://www.govinfo.gov/content/pkg/GOVPUB-HE20_6500-PURL-gpo23161/pdf/GOVPUB-HE20_6500-PURL-gpo23161.pdf';
 
     public const SOURCE_DOCUMENT = [
-        'filename' => 'Esi_Handbook.pdf',
+        'filename' => 'GOVPUB-HE20_6500-PURL-gpo23161.pdf',
         'title' => 'Emergency Severity Index, Version 4: Implementation Handbook',
-        'edition' => 'May 2005',
-        'publication_number' => 'AHRQ 05-0046-2',
-        'sha256' => '6cdf2d2c6ebf1f12662920e0ab6a840d615a9d460d1df4e4cd9c0f405a459017',
+        'edition' => '2012 Edition',
+        'publication_number' => 'AHRQ 12-0014',
+        'published' => 'November 2011',
+        'url' => self::HANDBOOK,
     ];
 
-    /** Table 3-1, printed p. 17. Each token means an assessed immediate requirement. */
+    /** Table 2-1, printed p. 9. Each token means an assessed immediate requirement. */
     public const LIFESAVING_INTERVENTIONS = [
         'bag_mask_ventilation', 'intubation', 'surgical_airway', 'emergent_cpap', 'emergent_bipap',
         'defibrillation', 'emergent_cardioversion', 'external_pacing', 'chest_needle_decompression',
@@ -29,7 +30,7 @@ final class EsiV4RuleCatalog
         'naloxone', 'dextrose_50_percent', 'dopamine', 'atropine', 'adenosine',
     ];
 
-    /** Table 3-1: these alone neither establish nor exclude an ESI 1 condition. */
+    /** Table 2-1: these alone neither establish nor exclude an ESI 1 condition. */
     public const NON_LIFESAVING_INTERVENTIONS = [
         'oxygen_administration', 'cardiac_monitor', 'ecg', 'laboratory_tests',
         'diagnostic_ultrasound', 'iv_access', 'saline_lock', 'aspirin', 'iv_nitroglycerin',
@@ -65,29 +66,29 @@ final class EsiV4RuleCatalog
         $definitions = [
             'ESI4-A' => ['A', ['immediate_lifesaving_intervention_required'],
                 'An assessed immediate life-saving intervention requirement assigns ESI 1. An explicit negative allows B.',
-                'Chapter 3, pp. 16-19; Table 3-1, p. 17'],
+                'Chapter 2, pp. 8-11; Table 2-1, p. 9'],
             'ESI4-B-HIGH-RISK' => ['B', ['high_risk_situation'],
                 'An assessed high-risk situation supports ESI 2 after A is explicitly negative.',
-                'Chapter 3, pp. 19-20; Chapter 4, pp. 25-31'],
+                'Chapter 2, pp. 11-12; Chapter 3, pp. 17-25'],
             'ESI4-B-MENTAL-STATUS' => ['B', ['acute_confusion_lethargy_disorientation'],
                 'An assessed acute change of this kind supports ESI 2. Chronic baseline confusion is not this criterion.',
-                'Chapter 3, p. 20; Chapter 4, pp. 31-32'],
+                'Chapter 2, p. 12; Chapter 3, pp. 25-26'],
             'ESI4-B-PAIN-DISTRESS' => ['B', ['severe_pain_or_distress'],
                 'Clinical assessment must establish severe pain or distress supporting ESI 2. A pain score alone is insufficient.',
-                'Chapter 3, pp. 20-21; Chapter 4, pp. 32-33'],
+                'Chapter 2, pp. 12-13; Chapter 3, pp. 26-27'],
             'ESI4-C' => ['C', ['expected_esi_resources'],
                 'An explicit clinical estimate of distinct ESI resources for this visit: zero gives ESI 5, one ESI 4, two or more proceeds to D.',
-                'Chapter 5, pp. 35-38; Table 5-1, p. 36; counting examples, p. 37'],
+                'Chapter 4, pp. 29-33; Table 4-1, p. 30; counting examples, p. 31'],
             'ESI4-D' => ['D', ['heart_rate', 'respiratory_rate', 'oxygen_saturation'],
                 'Adults: measured HR >100/min, RR >20/min or oxygen saturation <92% requires consideration of ESI 2 by a clinician. All three available outside these danger zones support ESI 3.',
-                'Chapter 6, pp. 41-43; Figure 6-1 and Table 6-2'],
+                'Chapter 5, pp. 35-38; Figure 5-1'],
         ];
         if ($this->deferVitalSigns) {
             unset($definitions['ESI4-D']);
             $definitions['ESI4-D-PROVISIONAL'] = ['D', ['immediate_lifesaving_intervention_required', 'high_risk_situation',
                 'acute_confusion_lethargy_disorientation', 'severe_pain_or_distress', 'expected_esi_resources'],
                 'Only after explicit negative A and all B criteria, and an established estimate of two or more resources: predict provisional ESI 3; Decision D remains unassessed. Unclear A, B or C never qualifies.',
-                'Study adaptation of Chapter 3, pp. 21-23, and Chapter 6, pp. 41-43; deferral is not a completed handbook ESI 3 decision'];
+                'Study adaptation of Chapters 4-5, pp. 29-38; deferral is not a completed handbook ESI 3 decision'];
         }
         $rules = [];
         foreach ($definitions as $id => [$point, $fields, $condition, $section]) {

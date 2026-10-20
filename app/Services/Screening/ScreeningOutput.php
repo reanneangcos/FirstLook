@@ -6,6 +6,8 @@ use JsonException;
 
 final class ScreeningOutput
 {
+    public const VALIDATION_VERSION = 'evidence-v2';
+
     public function schema(): array
     {
         return [
@@ -101,6 +103,10 @@ final class ScreeningOutput
                 throw new InvalidModelOutput;
             }
             $seen[] = $fact['field'];
+            $source = $patient[$fact['field']] ?? null;
+            if (PatientFields::isUnreported($source) && $fact['state'] !== 'unknown') {
+                throw new InvalidModelOutput('unknown_reported_as_known', $fact['field']);
+            }
             if ($fact['state'] === 'unknown') {
                 if ($fact['value'] !== null || $fact['evidence'] !== null) {
                     throw new InvalidModelOutput;
@@ -108,10 +114,9 @@ final class ScreeningOutput
 
                 continue;
             }
-            $source = $patient[$fact['field']] ?? null;
             if ($source === null || ! is_string($fact['value']) || trim($fact['value']) === ''
                 || $fact['value'] !== $fact['evidence'] || ! str_contains((string) $source, $fact['evidence'])) {
-                throw new InvalidModelOutput('ungrounded_fact');
+                throw new InvalidModelOutput('ungrounded_fact', $fact['field']);
             }
         }
         foreach ($output['missing_information'] as $field) {

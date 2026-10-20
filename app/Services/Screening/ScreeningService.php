@@ -13,15 +13,23 @@ use Throwable;
 
 class ScreeningService
 {
+    public const RETRY_FEEDBACK_VERSION = 'validation-feedback-v1';
+
     public function __construct(private OpenAIClient $client, private ScreeningOutput $output, private RuleLayer $rules) {}
 
-    public function screen(array $data, ?int $userId, ?int $patientVisitId = null): ScreeningSession
+    public function screen(array $data, ?int $userId, ?int $patientVisitId = null, bool $evaluateRules = true, array $evaluationMetadata = [], bool $studyCriteria = false): ScreeningSession
     {
+        if ($studyCriteria) {
+            app(StudyProtocol::class)->assertReady();
+        }
         $patient = PatientFields::only($data['patient']);
-        $promptVersion = config($patientVisitId === null ? 'triage.prompt_version' : 'triage.patient_prompt_version');
+        $promptVersion = $studyCriteria ? StudyProtocol::PROMPT
+            : config($patientVisitId === null ? 'triage.prompt_version' : 'triage.patient_prompt_version');
+        $preferredLanguage = $evaluationMetadata['response_language'] ?? $data['language'];
         $responseLanguage = $patientVisitId === null ? null
-            : (array_key_exists($data['language'], PatientChatContent::LOCALES) ? $data['language'] : 'English');
-        $prompt = file_get_contents(resource_path('prompts/'.$promptVersion.'.txt'));
+            : (array_key_exists($preferredLanguage, PatientChatContent::LOCALES) ? $preferredLanguage : 'English');
+        $prompt = $studyCriteria ? app(StudyProtocol::class)->prompt()
+            : file_get_contents(resource_path('prompts/'.$promptVersion.'.txt'));
         $prompt = str_replace('{{response_language}}', $responseLanguage ?? 'English', $prompt);
         if ($responseLanguage !== null) {
             $prompt .= "\n\n".PatientChatContent::voiceGuidance($responseLanguage, forScreening: true);
@@ -44,9 +52,13 @@ class ScreeningService
             'prompt_version' => $promptVersion, 'prompt_text' => $prompt,
             'method_b_status' => 'not_evaluated',
             'request_settings' => $settings + [
+                'evaluation_method' => $evaluateRules ? 'paired' : 'method_a_only',
+                'evaluation' => $evaluationMetadata,
                 'schema_version' => config('triage.schema_version'),
-                'classification_mode' => config('triage.classification_mode'),
-                'criteria_status' => 'pending_clinical_review',
+                'validation_version' => ScreeningOutput::VALIDATION_VERSION,
+                'retry_feedback_version' => self::RETRY_FEEDBACK_VERSION,
+                'classification_mode' => $studyCriteria ? 'reviewed_study_criteria' : config('triage.classification_mode'),
+                'criteria_status' => $studyCriteria ? 'reviewed_definitions' : 'pending_clinical_review',
                 'response_language' => $responseLanguage,
                 'patient_voice_version' => $responseLanguage === null ? null : config('triage.patient_voice_version'),
                 'timeout_seconds' => config('triage.timeout_seconds'),
@@ -74,6 +86,7 @@ class ScreeningService
             $httpStatus = null;
             $code = null;
             $retryable = true;
+            $feedback = null;
             try {
                 $response = $this->client->send($payload);
                 $httpStatus = $response->status();
@@ -90,6 +103,7 @@ class ScreeningService
                     } catch (InvalidModelOutput $error) {
                         $code = $error->failureCode;
                         $retryable = $code !== 'model_refusal';
+                        $feedback = $this->validationFeedback($error);
                     }
                     $attempt->update(['status' => $parsed ? 'accepted' : 'failed', 'parsed_output' => $parsed, 'failure_code' => $code]);
                     if ($parsed !== null) {
@@ -104,7 +118,9 @@ class ScreeningService
                             ]);
                         });
 
-                        $this->saveRuleResult($session, $parsed['extracted_facts']);
+                        if ($evaluateRules) {
+                            $this->saveRuleResult($session, $parsed['extracted_facts']);
+                        }
 
                         return $session->fresh();
                     }
@@ -129,10 +145,31 @@ class ScreeningService
             if (! $retryable || $number === $attempts) {
                 return $this->fail($session, $code, $this->failureMessage($code), $this->elapsed($started));
             }
+            if ($feedback !== null) {
+                $payload['input'][2] = ['role' => 'system', 'content' => $feedback];
+            }
+            if (isset($payload['input'][2])) {
+                $requestSettings = $session->request_settings;
+                $requestSettings['retry_feedback'][$number + 1] = $payload['input'][2]['content'];
+                $session->update(['request_settings' => $requestSettings]);
+            }
             usleep(min(2000, max(0, config('triage.retry_delay_ms') * $number)) * 1000);
         }
 
         return $session;
+    }
+
+    private function validationFeedback(InvalidModelOutput $error): string
+    {
+        $field = in_array($error->field, PatientFields::NAMES, true) ? ' Field: '.$error->field.'.' : '';
+        $instruction = match ($error->failureCode) {
+            'unknown_reported_as_known' => 'An unreported input was treated as a known fact. Use state unknown with null value and evidence for missing inputs and reporting placeholders.',
+            'ungrounded_fact' => 'Evidence did not exactly match its source field. Copy the original characters verbatim; do not translate, spell-correct, or normalize dialect words. Value and evidence must be identical.',
+            default => 'The response did not satisfy the output schema. Return one complete JSON object with the required fields and valid types.',
+        };
+
+        return 'Output validation failed.'.$field.' '.$instruction
+            .' Re-read the original patient record and return the complete response. This feedback supplies no clinical facts or expected priority. Follow the original classification instructions.';
     }
 
     private function elapsed(int $start): int

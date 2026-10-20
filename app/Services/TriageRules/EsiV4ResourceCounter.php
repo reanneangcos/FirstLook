@@ -6,8 +6,8 @@ final class EsiV4ResourceCounter
 {
     /**
      * Explicit expected services only. These tokens are not patient symptoms,
-     * orders, completed tests, or devices already in place. Table 5-1 and the
-     * examples on printed p. 37 of the supplied May 2005 handbook define the
+     * orders, completed tests, or devices already in place. Table 4-1 and the
+     * examples on printed p. 31 of the 2012 edition handbook define the
      * groups. Repeated tests within a group count once.
      *
      * @var array<string, array{group: string, weight: int}>

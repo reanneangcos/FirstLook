@@ -16,7 +16,7 @@ class PatientChatService
         return DB::transaction(function () use ($language): PatientVisit {
             $visit = PatientVisit::create(['language' => $language, 'answers' => [], 'scope_confirmed_at' => now()]);
             $visit->update(['stub_number' => 'FL-'.str_pad((string) $visit->id, 6, '0', STR_PAD_LEFT)]);
-            if (in_array(config('triage.intake_version'), ['intake-v1-conversational', 'intake-v2-conversational', 'intake-v3-conversational'], true)) {
+            if (in_array(config('triage.intake_version'), ['intake-v1-conversational', 'intake-v2-conversational', 'intake-v3-conversational', 'intake-v4-complete-record', 'intake-v5-field-map'], true)) {
                 $this->conversation->initialize($visit);
 
                 return $visit;
@@ -104,7 +104,7 @@ class PatientChatService
         });
     }
 
-    public function screen(PatientVisit $visit, ScreeningService $service, ?array $reviewedAnswers = null): void
+    public function screen(PatientVisit $visit, ScreeningService $service, ?array $reviewedAnswers = null, bool $evaluateRules = true, array $evaluationMetadata = []): void
     {
         /** Claim once before calling the provider, so refreshes and duplicate submissions never create a second prediction. */
         $claimed = DB::transaction(function () use ($visit, $reviewedAnswers): bool {
@@ -129,7 +129,10 @@ class PatientChatService
         if (! $claimed) {
             return;
         }
-        $screening = $service->screen(['patient' => $visit->answers, 'language' => $visit->language], null, $visit->id);
+        $screening = $service->screen(['patient' => $visit->answers, 'language' => $evaluationMetadata['input_language'] ?? $visit->language,
+            'dataset_case_id' => $evaluationMetadata['dataset_case_id'] ?? null,
+            'variant_id' => $evaluationMetadata['variant_id'] ?? null], null, $visit->id,
+            evaluateRules: $evaluateRules, evaluationMetadata: $evaluationMetadata);
         DB::transaction(function () use ($visit, $screening): void {
             if ($screening->processing_status === 'technical_failure') {
                 $text = PatientChatContent::text($visit->language, 'messages', 'failure', ['stub' => $visit->stub_number]);

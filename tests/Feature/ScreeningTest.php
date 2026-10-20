@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ScreeningSession;
 use App\Models\User;
 use App\Services\Screening\ScreeningService;
+use App\Services\TriageRules\RuleLayer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -71,11 +72,11 @@ class ScreeningTest extends TestCase
         Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope(MockScreening::output(2)))]);
         $this->post('/admin/screenings', MockScreening::input())->assertRedirect();
         $session = ScreeningSession::where('id', '!=', $previous->id)->firstOrFail();
-        $this->assertSame('screening-v0.4-llm-baseline', $session->prompt_version);
+        $this->assertSame('screening-v0.6-grounded-retries', $session->prompt_version);
         $this->assertSame('exploratory_llm_only', $session->request_settings['classification_mode']);
         $this->assertSame('pending_clinical_review', $session->request_settings['criteria_status']);
         $this->assertNull($session->request_settings['patient_voice_version']);
-        $this->assertSame(str_replace('{{response_language}}', 'English', file_get_contents(resource_path('prompts/screening-v0.4-llm-baseline.txt'))), $session->prompt_text);
+        $this->assertSame(str_replace('{{response_language}}', 'English', file_get_contents(resource_path('prompts/screening-v0.6-grounded-retries.txt'))), $session->prompt_text);
         $this->assertSame(2, $session->method_a_priority);
         $this->assertNull($session->method_b_priority);
         $this->assertSame('needs_review', $previous->fresh()->method_a_status);
@@ -143,6 +144,68 @@ class ScreeningTest extends TestCase
         $this->assertSame('failed', $session->attempts[0]->status);
         $this->assertSame('accepted', $session->attempts[1]->status);
         Http::assertSentCount(2);
+    }
+
+    public function test_changed_dialect_evidence_gets_targeted_feedback_without_replaying_the_rejected_prediction(): void
+    {
+        $this->mock(RuleLayer::class, function ($mock): void {
+            $mock->shouldNotReceive('evaluate');
+            $mock->shouldNotReceive('version');
+        });
+        $input = MockScreening::input();
+        $input['patient']['symptom_description'] = 'Sakit akong tuhod pero makalakaw pa ko.';
+        $bad = MockScreening::output(1);
+        $bad['explanation'] = 'DO-NOT-REPLAY-THIS-PREDICTION';
+        $bad['extracted_facts'][] = ['field' => 'symptom_description', 'state' => 'reported',
+            'value' => 'Sakit akong tuhod pero makalakad pa ko.', 'evidence' => 'Sakit akong tuhod pero makalakad pa ko.'];
+        $good = MockScreening::output(4);
+        $good['extracted_facts'][] = ['field' => 'symptom_description', 'state' => 'reported',
+            'value' => $input['patient']['symptom_description'], 'evidence' => $input['patient']['symptom_description']];
+        $badRaw = json_encode(MockScreening::envelope($bad));
+        Http::fake(['api.openai.com/*' => Http::sequence()->push($badRaw)->push(MockScreening::envelope($good))]);
+        $session = app(ScreeningService::class)->screen($input, auth()->id(), evaluateRules: false);
+        $this->assertSame(4, $session->method_a_priority);
+        $this->assertSame('not_evaluated', $session->method_b_status);
+        $this->assertSame($good, $session->parsed_output);
+        $this->assertSame($badRaw, $session->attempts[0]->original_response);
+        $this->assertSame('ungrounded_fact', $session->attempts[0]->failure_code);
+        $requests = Http::recorded();
+        $this->assertCount(2, $requests);
+        $first = $requests[0][0]->data();
+        $second = $requests[1][0]->data();
+        $this->assertCount(2, $first['input']);
+        $this->assertCount(3, $second['input']);
+        $this->assertSame($first['input'], array_slice($second['input'], 0, 2));
+        $this->assertSame('system', $second['input'][2]['role']);
+        $this->assertStringContainsString('Field: symptom_description.', $second['input'][2]['content']);
+        $this->assertStringContainsString('do not translate, spell-correct', $second['input'][2]['content']);
+        $this->assertStringNotContainsString('DO-NOT-REPLAY', json_encode($second));
+        $this->assertStringNotContainsString('FIXTURE-ONLY', json_encode($second));
+        $this->assertSame($second['input'][2]['content'], $session->request_settings['retry_feedback'][2]);
+        $this->assertSame('evidence-v2', $session->request_settings['validation_version']);
+    }
+
+    public function test_unreported_as_absent_is_rejected_with_feedback_and_never_rewritten_into_a_prediction(): void
+    {
+        $input = MockScreening::input();
+        $input['patient']['allergies'] = 'None reported';
+        $bad = MockScreening::output(4);
+        $bad['extracted_facts'][1] = ['field' => 'allergies', 'state' => 'absent',
+            'value' => 'None reported', 'evidence' => 'None reported'];
+        Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope($bad))]);
+        $session = app(ScreeningService::class)->screen($input, auth()->id(), evaluateRules: false);
+        $this->assertSame('technical_failure', $session->processing_status);
+        $this->assertSame('unknown_reported_as_known', $session->failure_code);
+        $this->assertNull($session->method_a_priority);
+        $this->assertNull($session->method_a_status);
+        $this->assertSame('None reported', $session->patient_input['allergies']);
+        $this->assertCount(3, $session->attempts);
+        $this->assertCount(2, $session->request_settings['retry_feedback']);
+        Http::assertSentCount(3);
+        $requests = Http::recorded();
+        $this->assertCount(3, $requests[2][0]['input']);
+        $this->assertStringContainsString('Field: allergies.', $requests[1][0]['input'][2]['content']);
+        $this->assertStringContainsString('Use state unknown', $requests[1][0]['input'][2]['content']);
     }
 
     public function test_timeouts_are_recorded_without_exception_messages_or_credentials(): void

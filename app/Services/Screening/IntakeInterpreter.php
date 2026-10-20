@@ -26,13 +26,16 @@ class IntakeInterpreter
             'text' => ['format' => ['type' => 'json_schema', 'name' => 'patient_intake', 'strict' => true, 'schema' => $this->schema()]]];
         $context = [
             'response_language' => $visit->language,
+            'dataset_field_labels' => PatientFields::DATASET_COLUMNS,
+            'recent_messages' => $visit->messages()->whereNotNull('field')->reorder('id', 'desc')->limit(6)->get(['role', 'content'])
+                ->reverse()->values()->toArray(),
             'known_answers' => $visit->answers,
             'unresolved_answers' => $visit->interview_state['unresolved_answers'] ?? [],
             'pending_fields' => $visit->interview_state['pending_fields'],
             'asked_count' => $visit->interview_state['asked_count'],
             'clarify_fields' => $visit->interview_state['clarify_fields'] ?? [],
             'question_groups' => ConversationalInterview::GROUPS,
-            'last_question' => $visit->messages()->where('role', 'assistant')->reorder('id', 'desc')->value('content'),
+            'last_question' => $visit->messages()->where('role', 'assistant')->whereNotNull('field')->reorder('id', 'desc')->value('content'),
             'reply' => $reply,
         ];
         try {
@@ -60,6 +63,21 @@ class IntakeInterpreter
 
     public function schema(): array
     {
+        $factProperties = [
+            'state' => ['type' => 'string', 'enum' => ['reported', 'absent', 'not_applicable', 'unknown', 'unclear']],
+            'evidence' => ['type' => 'string'], 'replaces_previous' => ['type' => 'boolean'], 'needs_detail' => ['type' => 'boolean'],
+        ];
+        $factsSchema = ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => false,
+            'required' => ['field', ...array_keys($factProperties)],
+            'properties' => ['field' => ['type' => 'string', 'enum' => PatientFields::NAMES], ...$factProperties]]];
+        if (config('triage.intake_version') === 'intake-v5-field-map') {
+            $factsSchema = ['type' => 'object', 'additionalProperties' => false, 'required' => PatientFields::NAMES,
+                'properties' => array_fill_keys(PatientFields::NAMES, ['anyOf' => [
+                    ['type' => 'null'],
+                    ['type' => 'object', 'additionalProperties' => false, 'required' => array_keys($factProperties), 'properties' => $factProperties],
+                ]])];
+        }
+
         return ['type' => 'object', 'additionalProperties' => false, 'required' => ['facts', 'next_question', 'language_change'], 'properties' => [
             'language_change' => ['anyOf' => [
                 ['type' => 'null'],
@@ -68,13 +86,7 @@ class IntakeInterpreter
                     'evidence' => ['type' => 'string'],
                 ]],
             ]],
-            'facts' => ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => false,
-                'required' => ['field', 'state', 'evidence', 'replaces_previous', 'needs_detail'], 'properties' => [
-                    'field' => ['type' => 'string', 'enum' => PatientFields::NAMES],
-                    'state' => ['type' => 'string', 'enum' => ['reported', 'absent', 'not_applicable', 'unknown', 'unclear']],
-                    'evidence' => ['type' => 'string'], 'replaces_previous' => ['type' => 'boolean'],
-                    'needs_detail' => ['type' => 'boolean'],
-                ]]],
+            'facts' => $factsSchema,
             'next_question' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['fields', 'text'], 'properties' => [
                 'fields' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => PatientFields::NAMES]],
                 'text' => ['type' => 'string'],
@@ -109,6 +121,23 @@ class IntakeInterpreter
             $result = json_decode($text, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
             throw new InvalidIntakeResponse('invalid_json');
+        }
+        if (config('triage.intake_version') === 'intake-v5-field-map') {
+            $map = $result['facts'] ?? null;
+            if (! is_array($map) || count($map) !== count(PatientFields::NAMES)
+                || array_diff(PatientFields::NAMES, array_keys($map)) !== []) {
+                throw new InvalidIntakeResponse('invalid_fact_map');
+            }
+            $result['facts'] = [];
+            foreach ($map as $field => $fact) {
+                if ($fact === null) {
+                    continue;
+                }
+                if (! is_array($fact) || array_key_exists('field', $fact)) {
+                    throw new InvalidIntakeResponse('invalid_fact_map');
+                }
+                $result['facts'][] = ['field' => $field, ...$fact];
+            }
         }
         if (! is_array($result) || count($result) !== 3 || ! array_key_exists('language_change', $result) || ! is_array($result['facts'] ?? null)
             || ! array_is_list($result['facts']) || count($result['facts']) > 15) {

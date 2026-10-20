@@ -177,7 +177,7 @@ class HandbookPreScreeningTest extends TestCase
         $this->assertSame(1, $result['priority']);
         $this->assertSame(['ESI4-A'], $result['matched_rule_ids']);
         $this->assertSame(['intubation'], $result['trace'][0]['observations'][0]['matched_interventions']);
-        $this->assertSame('May 2005', $result['source_document']['edition']);
+        $this->assertSame('2012 Edition', $result['source_document']['edition']);
         $this->assertSame($result, $this->engine()->evaluate($this->facts(), $assessment));
     }
 

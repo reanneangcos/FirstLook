@@ -16,7 +16,12 @@ class PatientRecordController extends Controller
             'status' => ['nullable', 'in:collecting,ready,screening,classified,needs_review,technical_failure']]);
         $query = PatientVisit::query()->select(['id', 'stub_number', 'language', 'status', 'question_index', 'created_at'])->with('screening:id,patient_visit_id,processing_status,method_a_status,method_a_priority');
         if ($search = $filters['q'] ?? null) {
-            $query->where('stub_number', 'like', '%'.$search.'%');
+            $query->where(function (Builder $query) use ($search): void {
+                $query->where('stub_number', 'like', '%'.$search.'%')
+                    ->orWhere('interview_state->development->dataset_case_id', 'like', '%'.$search.'%')
+                    ->orWhere('interview_state->development->variant_id', 'like', '%'.$search.'%')
+                    ->orWhere('interview_state->development->configuration->run_id', 'like', '%'.$search.'%');
+            });
         }
         if ($status = $filters['status'] ?? null) {
             if (in_array($status, ['classified', 'needs_review', 'technical_failure'])) {

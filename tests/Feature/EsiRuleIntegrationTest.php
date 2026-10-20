@@ -44,7 +44,7 @@ class EsiRuleIntegrationTest extends TestCase
         $this->assertNull($session->method_b_priority);
         $this->assertSame((new EsiV4RuleCatalog(deferVitalSigns: true))->version(), $session->method_b_rule_version);
         $this->assertSame('A', $session->method_b_result['stopped_at']);
-        $this->assertSame('May 2005', $session->method_b_result['source_document']['edition']);
+        $this->assertSame('2012 Edition', $session->method_b_result['source_document']['edition']);
         $this->assertSame('not_assessed', $session->method_b_result['decision_d']['status']);
         $this->get('/admin/screenings/'.$session->id)->assertInertia(fn (Assert $page) => $page
             ->where('screening.method_a_priority', 2)->where('screening.method_b_status', 'needs_review')

@@ -40,7 +40,7 @@ class ConversationalInterview
         }
 
         return ['field' => $fields[0], 'fields' => $fields,
-            'text' => $visit->messages()->where('role', 'assistant')->reorder('id', 'desc')->value('content'),
+            'text' => $visit->messages()->where('role', 'assistant')->whereNotNull('field')->reorder('id', 'desc')->value('content'),
             'revision' => $visit->messages()->count(),
             'follow_up' => max(array_intersect_key($visit->interview_state['asked_count'], array_flip($fields))) > 1];
     }
@@ -60,6 +60,8 @@ class ConversationalInterview
             try {
                 $result = $this->interpreter->interpret($visit, $reply);
             } catch (InvalidIntakeResponse $error) {
+                $visit->update(['interview_state' => array_replace($visit->interview_state,
+                    ['last_intake_failure' => ['code' => $error->getMessage(), 'at' => now()->toIso8601String()]])]);
                 Log::notice('Patient intake request failed.', ['failure_code' => $error->getMessage(),
                     'intake_version' => $visit->interview_state['version']]);
                 throw ValidationException::withMessages(['message' => PatientChatContent::text($visit->language, 'conversation', 'retry')]);

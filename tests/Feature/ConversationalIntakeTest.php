@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\PatientVisit;
 use App\Services\Screening\ConversationalInterview;
 use App\Services\Screening\PatientChatContent;
+use App\Services\Screening\PatientChatService;
 use App\Services\Screening\PatientFields;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -24,7 +25,7 @@ class ConversationalIntakeTest extends TestCase
         parent::setUp();
         $this->withoutVite();
         Http::preventStrayRequests();
-        config(['triage.intake_version' => 'intake-v3-conversational', 'triage.api_key' => 'mock-only-key',
+        config(['triage.intake_version' => 'intake-v5-field-map', 'triage.api_key' => 'mock-only-key',
             'triage.model' => 'gpt-6-luna', 'triage.retry_delay_ms' => 0]);
     }
 
@@ -50,7 +51,14 @@ class ConversationalIntakeTest extends TestCase
 
     private static function intakeResponse(array $facts = [], array $fields = [], string $question = '', ?array $languageChange = null): array
     {
-        return MockScreening::envelope(['facts' => $facts, 'next_question' => ['fields' => $fields, 'text' => $question], 'language_change' => $languageChange]);
+        $map = array_fill_keys(PatientFields::NAMES, null);
+        foreach ($facts as $fact) {
+            $field = $fact['field'];
+            unset($fact['field']);
+            $map[$field] = $fact;
+        }
+
+        return MockScreening::envelope(['facts' => $map, 'next_question' => ['fields' => $fields, 'text' => $question], 'language_change' => $languageChange]);
     }
 
     private function skipTo(PatientVisit $visit, string $field): void
@@ -63,6 +71,83 @@ class ConversationalIntakeTest extends TestCase
     public static function languages(): array
     {
         return [['English'], ['Bisaya'], ['Tagalog']];
+    }
+
+    public function test_field_map_schema_preserves_unmentioned_fields_and_complete_multisentence_evidence(): void
+    {
+        $visit = $this->startChat();
+        $description = 'My arm itches. No swelling. I can move it normally.';
+        Http::fake(['api.openai.com/*' => Http::response(self::intakeResponse([
+            self::fact('main_complaint', 'My arm itches'), self::fact('symptom_description', $description),
+            self::fact('allergies', 'Allergies: Not reported', 'unknown'),
+        ]))]);
+        $this->answer($visit, $description.' Allergies: Not reported.')->assertRedirect('/');
+        $this->assertSame($description, $visit->refresh()->answers['symptom_description']);
+        $this->assertArrayHasKey('allergies', $visit->answers);
+        $this->assertNull($visit->answers['allergies']);
+        $this->assertArrayNotHasKey('maintenance_medications', $visit->answers);
+        Http::assertSent(function ($request): bool {
+            $schema = $request['text']['format']['schema']['properties']['facts'];
+
+            return $schema['type'] === 'object' && $schema['additionalProperties'] === false
+                && $schema['required'] === PatientFields::NAMES
+                && count($schema['properties']) === 15
+                && $schema['properties']['allergies']['anyOf'][0]['type'] === 'null';
+        });
+    }
+
+    #[DataProvider('languages')]
+    public function test_complete_record_accepts_explicit_unknowns_without_repeating_questions(string $language): void
+    {
+        $visit = $this->startChat($language);
+        $values = ['age' => '44', 'reported_sex' => 'Female', 'main_complaint' => 'Itchy arm',
+            'symptom_description' => 'My arm itches', 'other_symptoms' => 'No other symptoms',
+            'known_conditions' => 'None reported', 'allergies' => 'Not reported', 'maintenance_medications' => 'None reported',
+            'onset' => 'Yesterday', 'duration' => '1 day', 'reported_severity' => 'Mild', 'worsening' => 'No',
+            'tests_completed' => 'Not reported', 'tests_requested' => 'Not reported', 'medical_devices' => 'None reported'];
+        $facts = [];
+        $clauses = [];
+        foreach ($values as $field => $value) {
+            $clause = PatientFields::DATASET_COLUMNS[$field].': '.$value;
+            $clauses[] = $clause;
+            $state = in_array($value, ['Not reported', 'None reported'], true) ? 'unknown' : 'reported';
+            $facts[] = self::fact($field, $field === 'age' ? $value : $clause, $state);
+        }
+        Http::fake(['api.openai.com/*' => Http::response(self::intakeResponse($facts))]);
+        $this->answer($visit, implode('. ', $clauses).'.')->assertRedirect('/');
+        $this->assertSame('ready', $visit->refresh()->status);
+        $this->assertCount(15, $visit->answers);
+        $this->assertSame([], $visit->interview_state['pending_fields']);
+        $this->assertSame(9, $visit->question_index);
+        $this->assertNull($visit->answers['allergies']);
+        $this->assertNull($visit->answers['maintenance_medications']);
+        $this->assertSame(44, $visit->answers['age']);
+        $this->assertNull(app(PatientChatService::class)->currentQuestion($visit));
+        Http::assertSent(fn ($request): bool => json_decode($request['input'][1]['content'], true)['dataset_field_labels'] === PatientFields::DATASET_COLUMNS);
+        Http::assertSentCount(1);
+    }
+
+    public function test_resolved_both_reply_receives_prior_clarification_context_and_advances(): void
+    {
+        $visit = $this->startChat();
+        $this->skipTo($visit, 'known_conditions');
+        Http::fake(['api.openai.com/*' => Http::sequence()
+            ->push(self::intakeResponse([self::fact('known_conditions', 'No conditions', 'absent')],
+                ['maintenance_medications', 'allergies'], 'Do you mean no regular medications, no allergies, or both?'))
+            ->push(self::intakeResponse([
+                self::fact('maintenance_medications', 'both', 'absent'), self::fact('allergies', 'both', 'absent'),
+            ]))]);
+        $this->answer($visit, 'No conditions')->assertRedirect('/');
+        $this->answer($visit, 'both')->assertRedirect('/');
+        $this->assertSame(['tests_completed', 'tests_requested', 'medical_devices'], $visit->refresh()->interview_state['pending_fields']);
+        Http::assertSent(function ($request): bool {
+            $context = json_decode($request['input'][1]['content'], true);
+
+            return $context['reply'] === 'both'
+                && in_array('Do you mean no regular medications, no allergies, or both?', array_column($context['recent_messages'], 'content'), true)
+                && in_array('No conditions', array_column($context['recent_messages'], 'content'), true);
+        });
+        Http::assertSentCount(2);
     }
 
     #[DataProvider('languages')]
@@ -281,12 +366,12 @@ class ConversationalIntakeTest extends TestCase
 
         $this->answer($visit, 'Bisaya please')->assertRedirect('/');
 
-        $this->assertSame('intake-v3-conversational', $visit->refresh()->interview_state['version']);
+        $this->assertSame('intake-v5-field-map', $visit->refresh()->interview_state['version']);
         $this->assertArrayNotHasKey('main_complaint', $visit->answers);
         $this->assertSame('I feel bad', $visit->interview_state['unresolved_answers']['main_complaint']['evidence']);
         $this->assertSame(0, $visit->question_index);
         $this->assertSame($oldMessage, $visit->messages()->first()->content);
-        $this->assertSame('intake-v3-conversational', $visit->messages()->reorder('id', 'desc')->first()->metadata['intake_version']);
+        $this->assertSame('intake-v5-field-map', $visit->messages()->reorder('id', 'desc')->first()->metadata['intake_version']);
         Http::assertSentCount(1);
     }
 
@@ -386,6 +471,9 @@ class ConversationalIntakeTest extends TestCase
     public static function invalidResponses(): array
     {
         return [
+            [MockScreening::envelope(['facts' => [], 'next_question' => ['fields' => [], 'text' => ''], 'language_change' => null])],
+            [MockScreening::envelope(['facts' => array_fill_keys(array_slice(PatientFields::NAMES, 1), null), 'next_question' => ['fields' => [], 'text' => ''], 'language_change' => null])],
+            [MockScreening::envelope(['facts' => array_replace(array_fill_keys(PatientFields::NAMES, null), ['age' => ['field' => 'age']]), 'next_question' => ['fields' => [], 'text' => ''], 'language_change' => null])],
             [self::intakeResponse(languageChange: ['language' => 'Spanish', 'evidence' => 'hello'])],
             [self::intakeResponse(languageChange: ['language' => 'Bisaya', 'evidence' => 'not in the reply'])],
             [self::intakeResponse([self::fact('main_complaint', 'Invented symptom')])],

@@ -4,7 +4,7 @@ return [
     'mode' => 'handbook_pre_screening',
 
     /**
-     * handbook_pre_screening uses the supplied May 2005 ESI v4 handbook and a
+     * handbook_pre_screening uses the 2012 edition ESI v4 handbook and a
      * separately reviewed provisional ESI 3 branch with Decision D deferred.
      * Inspect draft decisions: php artisan esi:preview --no-interaction
      * Patient narratives alone are never silently converted to clinical assessments.

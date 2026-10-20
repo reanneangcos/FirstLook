@@ -27,7 +27,7 @@ class PreviewEsiRulesTest extends TestCase
         $this->assertCount(6, $report['rules']);
         $this->assertTrue($report['rules']['ESI4-D-PROVISIONAL']['is_study_adaptation']);
         $this->assertSame([1, 2, 2, 2, 5, 4, 3, null, null, null, null, 1, null, 4, 3, 5, null, null], array_map(fn (array $case): ?int => $case['result']['candidate_priority'], $report['examples']));
-        $this->assertSame('AHRQ 05-0046-2', $report['source_document']['publication_number']);
+        $this->assertSame('AHRQ 12-0014', $report['source_document']['publication_number']);
         foreach ($report['examples'] as $case) {
             $this->assertSame('draft_preview', $case['result']['status']);
             $this->assertNull($case['result']['priority']);

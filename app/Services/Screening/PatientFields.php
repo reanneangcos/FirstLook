@@ -44,4 +44,19 @@ final class PatientFields
 
         return $patient;
     }
+
+    /** Recognize whole-field reporting placeholders without interpreting clinical content. */
+    public static function isUnreported(mixed $value): bool
+    {
+        if ($value === null) {
+            return true;
+        }
+        if (! is_string($value)) {
+            return false;
+        }
+
+        return in_array(mb_strtolower(trim($value, " \t\n\r\0\x0B.")), [
+            '', 'not reported', 'none reported', 'not stated', 'unknown', 'hindi naiulat', 'wala gitaho',
+        ], true);
+    }
 }

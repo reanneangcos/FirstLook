@@ -48,6 +48,45 @@ class ScreeningOutputTest extends TestCase
         }
     }
 
+    public static function unreportedValues(): array
+    {
+        return [[null], [''], ['  '], ['None reported'], [' Not reported. '], ['NOT STATED'],
+            ['Unknown'], ['Hindi naiulat'], ['Wala gitaho']];
+    }
+
+    #[DataProvider('unreportedValues')]
+    public function test_unreported_inputs_cannot_be_accepted_as_known_facts(?string $value): void
+    {
+        $patient = PatientFields::only(MockScreening::input()['patient']);
+        $patient['allergies'] = $value;
+        foreach (['absent', 'reported', 'not_applicable'] as $state) {
+            $output = MockScreening::output(4);
+            $output['extracted_facts'][1] = ['field' => 'allergies', 'state' => $state,
+                'value' => $value, 'evidence' => $value];
+            try {
+                (new ScreeningOutput)->validate($output, $patient);
+                $this->fail('An unreported field was accepted as known.');
+            } catch (InvalidModelOutput $error) {
+                $this->assertSame('unknown_reported_as_known', $error->failureCode);
+                $this->assertSame('allergies', $error->field);
+            }
+        }
+        $output = MockScreening::output(4);
+        $this->assertSame($output, (new ScreeningOutput)->parse(json_encode(MockScreening::envelope($output)), $patient));
+    }
+
+    public function test_explicit_negatives_inapplicability_and_longer_statements_keep_their_meaning(): void
+    {
+        foreach (['No allergies' => 'absent', 'None' => 'absent', 'Not applicable' => 'not_applicable',
+            'None reported previously; now reports itching' => 'reported'] as $value => $state) {
+            $patient = PatientFields::only(MockScreening::input()['patient']);
+            $patient['allergies'] = $value;
+            $output = MockScreening::output(4);
+            $output['extracted_facts'][1] = ['field' => 'allergies', 'state' => $state, 'value' => $value, 'evidence' => $value];
+            $this->assertSame($output, (new ScreeningOutput)->parse(json_encode(MockScreening::envelope($output)), $patient));
+        }
+    }
+
     public function test_refusal_is_not_a_needs_review_prediction(): void
     {
         $response = MockScreening::envelope();

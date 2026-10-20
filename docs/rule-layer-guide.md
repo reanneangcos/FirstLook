@@ -1,32 +1,26 @@
 # Provisional rule layer and next steps
 
-## October 12: supplied May 2005 handbook
+## Current implementation — October 20, 2026
 
-`config/esi.php` now selects `handbook_pre_screening`. The source is the supplied `Esi_Handbook.pdf`, **ESI v4, May 2005, AHRQ 05-0046-2**. Each result and rule trace identifies that edition and the file's SHA-256. This is a different edition from the 2012 handbook discussed in the October 11 history below. The current engine version is `esi-v4-adult-1.2.0`.
+The clinical catalog now identifies the **2012 Edition, AHRQ Publication 12-0014 (November 2011)** cited in the thesis. Its version is `esi-v4-adult-1.3.0`. Source references now use the corresponding chapters and printed pages. The earlier supplied `Esi_Handbook.pdf` was the May 2005 edition; that file and previously saved results have not been changed. No hash from the 2005 file is presented as a hash of the 2012 source.
 
-- A follows Chapter 3, pp. 16–19. An explicitly assessed immediate intervention can be supplied as a boolean or a list of the Table 3-1 intervention tokens. Oxygen, monitoring and IV access alone neither establish nor exclude A. A contradictory negative assessment blocks classification.
-- B preserves the three assessed criteria and pain-score limitation in Chapters 3–4. A must be explicitly excluded first. The engine does not infer these clinical judgments from narrative keywords.
-- C accepts an explicit expected-resource count or a verified `expected_resource_plan` containing `complete` (boolean) and `items` (service tokens). `EsiV4ResourceCounter` groups blood/urine labs, avoids counting repeated X-rays, and excludes the Table 5-1 non-resources. A complex procedure counts as two. An incomplete plan can support the two-or-more branch only when two resources are already established; it cannot establish zero or exactly one. Contradictory count/plan inputs return Needs Review. The supported token list is included in `esi:preview --json`.
-- The separately reviewed provisional D branch still returns **“Most likely ESI 3 - nurse evaluation and vital signs required”** only after supported negative A/B and at least two expected resources. Chapter 6, pp. 41–43 requires the omitted measurements for a completed clinical ESI 3 assessment. D remains `not_assessed` in this study adaptation.
+`config/esi.php` still selects `handbook_pre_screening`. This engine executes explicit clinical A/B/C assessments with a separately reviewed provisional D branch. It does not silently turn narrative symptoms into those assessments. The patient-report alternative executes reviewed exact-text conditions and exclusions using the 15 allowed fields.
 
-Run `docker compose exec -T app php artisan esi:preview --no-interaction` for 18 fictional demonstrations, or add `--json` for full specifications and traces. These remain draft candidates, not study results. Method A and previously saved results remain unchanged.
+**Current blocker:** the project has no configured patient-response mappings or approval records. The final-study command now detects this mismatch before sending a request. Passing software tests does not supply those missing clinical conditions.
 
-**Current patient-workflow limitation:** no approvals or patient-response mappings have been supplied. The chat passes its unchanged extracted facts and no clinical assessment; the handbook engine therefore returns Needs Review at A when adult eligibility is known. Selecting this engine does not manufacture intervention assessments, resource estimates or nurse approval. The separate `provisional_patient_report` mode remains available for exact reviewed patient-fact mappings. The existing reference labels need not be revalidated, but labels alone do not supply those mappings.
-
-## Earlier implementation history
-
-## October 11: handbook rules and provisional ESI 3 for nurse review
-
-The source-linked `EsiV4RuleCatalog` now includes concrete clinical specifications, exclusions and input limitations for A/B/C, plus a separately identified `ESI4-D-PROVISIONAL` study adaptation. `EsiV4RuleLayer` executes this branch in the selectable `handbook_pre_screening` mode. The clinical mode still requires measured vital signs. The current patient workflow remains `provisional_patient_report` until usable patient-fact mappings have been reviewed.
-
-The draft is executable now:
+Read-only checks:
 
 ```bash
-php artisan esi:preview --no-interaction
-php artisan esi:preview --json --no-interaction
+docker compose exec -T app php artisan study:check --no-interaction
+docker compose exec -T app php artisan study:check --review --no-interaction
+docker compose exec -T app php artisan esi:preview --json --no-interaction
 ```
 
-The command demonstrates 11 fictional inputs covering all five levels and unresolved A/B/C conditions. JSON includes rule IDs, required fields, source references, approval status and evidence traces. It makes no provider calls, database writes or approval changes. A preview has `status=draft_preview`, `priority=null`, a separate `candidate_priority`, and `study_eligible=false`. Candidate levels cannot be counted as final results. Normal evaluation still enforces clinical approvals.
+`study:check --review` exports the concrete handbook decisions, their exclusions, candidate input fields, and the exact remaining mapping decisions for the nurse. It includes any configured patient rules and their approval status. It does not create approvals. A failed readiness check exits with code 1 intentionally.
+
+`esi:preview` demonstrates fictional clinical inputs. Outputs remain `draft_preview`, with `priority=null`, a separate `candidate_priority`, and `study_eligible=false`. They are not clinical approvals or study results.
+
+### Handbook decisions and provisional ESI 3
 
 | Decision | Explicit established condition | Proposed action |
 | --- | --- | --- |
@@ -72,11 +66,11 @@ If no valid pairs exist, conditional comparison is **not estimable**. Report cov
 
 ## Current status
 
-The patient workflow now uses `ProvisionalEsiRuleLayer`. It can execute explicit, reviewed mappings without collecting measured vital signs. It records a provisional prediction and `decision_d.status = not_assessed`.
+The selectable `provisional_patient_report` mode uses `ProvisionalEsiRuleLayer`. After mappings are reviewed and configured, it can operate on patient reports without measured vital signs. It records provisional predictions with `decision_d.status = not_assessed`. It is not the active default.
 
 **No clinical mappings are approved or enabled.** The team confirmed that the workbook contains validated case labels without written rationales or general rule conditions. `config/esi.php` therefore has empty `provisional_rules` and `provisional_approvals`. Current patient submissions will continue to return Needs Review for Method B. Software tests use clearly fictional tokens and approvals; those must never become study criteria.
 
-The existing `EsiV4RuleLayer` remains available under `esi.mode = clinical_esi_v4`. Its A–D assessments and measured-vitals requirement are unchanged. The default `provisional_patient_report` method is a separate study adaptation and cannot be described as complete clinical ESI v4.
+The existing `EsiV4RuleLayer` remains available under `esi.mode = clinical_esi_v4`. Its A–D assessments and measured-vitals requirement are unchanged. The selectable `provisional_patient_report` method is a separate study adaptation and cannot be described as complete clinical ESI v4.
 
 ## Evidence supporting the design
 
@@ -131,7 +125,7 @@ The reviewed patient-report adaptation would need all of the following:
 
 No inspected paper supplies all five items for this dataset. The reviewer must assess the proposed interpretation; merely signing an incomplete row does not supply its missing conditions. If the permitted facts cannot support a mapping, retain Needs Review and report its effect on coverage. The existing dataset labels remain unchanged.
 
-The earlier source audit changed the specification guide only. The October 11 implementation above adds an executable handbook preview and the provisional D branch. It does not manufacture approvals or populate patient-report mappings with unsupported clinical assumptions.
+The executable handbook preview specifies clinical decisions and the provisional D branch. It does not establish that a particular patient-reported phrase supplies a clinical assessment. The review packet makes that remaining distinction explicit.
 
 ## What the code checks
 
@@ -188,7 +182,52 @@ Each corresponding entry in `esi.provisional_approvals` records `status`, `revie
 1. **Protect the existing reference dataset.** Preserve its labels. Have the custodian establish the paper's canonical-case development/test split before prompt or rule tuning. Do not expose final-test labels for rule construction.
 2. **Complete the rule specification.** Use the handbook and development cases to draft general mappings, including ESI 3 and earlier-decision exclusions. Have the clinical reviewer approve those conditions and their provisional interpretation. Record rejected or unsupported mappings too. Do not invent review records or backfill rationales as if they were part of the original validation.
 3. **Enter only approved mappings and pre-test development cases.** Start with the paper's 10 pilot cases in the development set. Examine matched rules, missing facts, no-match cases, unsupported phrasing and conflicts. Software tests may be run now with `php artisan test --compact tests/Unit/ProvisionalEsiRuleLayerTest.php tests/Feature/EsiRuleIntegrationTest.php tests/Unit/EsiV4RuleLayerTest.php`. They verify implementation, not clinical accuracy.
-4. **Freeze the comparison.** Supply the same reviewed screening criteria to Method A's prompt as to Method B. The current Method A prompt remains exploratory and was deliberately not rewritten by this change. Freeze prompt, model/settings, schema, translations, rules, approvals and dataset split. Changing the study prompt creates a new version; preserve earlier A outputs.
-5. **Build and verify the evaluation runner, then run all three repetitions.** The project does not yet have the paper's full batch runner or metric calculations. Each accepted response must yield a saved A/B pair; join reference labels only afterward. Keep run IDs and all technical attempts. The planned final set is 120 canonical cases × 5 versions × 3 runs = 1,800 paired observations, grouped under 120 cases.
+4. **Freeze the comparison.** The final runner uses `screening-study-v1`, which inserts the same reviewed definitions used by B into A's prompt. A still decides independently; B receives only A's accepted extracted facts. The exploratory chatbot/DEV prompt and saved A outputs remain unchanged. The freeze records the exact criteria, approval records, prompt/schema/code hashes, model settings, dataset hash and separate reference-key hash. Any subsequent configuration or code change prevents resuming that experiment.
+5. **Run and score the frozen comparison.** The commands below now implement three fresh repetitions, saved separately. Accepted Needs Review outputs are not retried. Technical/schema failures use the existing maximum of three attempts; interrupted records stop for inspection. Resuming skips all saved terminal outcomes, including failures, and fills only missing versions. Each record has a separate patient stub and structured-submission transcript in the admin dashboard. It is not represented as a multi-turn patient conversation.
 
-Report each run and the mean across runs, without selecting the best run. Follow Section 3.13 for common-pair accuracy, macro-F1, error direction and consistency, alongside each method's coverage, Needs Review, technical failures and completion-adjusted accuracy. Report ESI 3 separately. If there are no valid A/B pairs, conditional comparative metrics are not estimable. Needs Review stays a null-priority abstention, not an ESI level or an over/undertriage event.
+## Final evaluation commands
+
+These are future execution steps, **not commands that were run on your real TEST data during this change**. First complete review and the development pilot record. Select `provisional_patient_report` only with the approved patient mappings in place.
+
+The input JSON uses the same structure as the original DEV manifest, with `split: TEST`, `source_sha256`, and `cases`. Each case has `split`, `dataset_case_id`, `variant_id`, `language`, and `patient` containing exactly the 15 allowed fields. No labels, rationale columns or other metadata are allowed in `patient` or case entries. It must contain 120 canonical cases, each with English, Tagalog, Bisaya and two distinct code-switch variants, for 600 versions. Code-switch pairs may differ across canonical cases.
+
+Keep references in a separate JSON list containing only `{variant_id, expert_priority}` for all 600 versions. Every version of a canonical case must share its validated reference. The freeze validates the key and stores its hash, without including the labels in patient prompts. Scoring joins the key only after all 1,800 records are present.
+
+```bash
+# Validate the proposed freeze without making requests or writing a freeze.
+# Replace the paths and record IDs with actual retained records.
+# Choose the English-only secondary test repetition BEFORE seeing results.
+docker compose exec -T app php artisan study:freeze \
+  storage/app/private/studies/test-input.json \
+  --study-id=final-v1 \
+  --reference=storage/app/private/studies/test-reference.json \
+  --dataset-review-record=ACTUAL_DATASET_RELEASE_RECORD \
+  --pilot-record=ACTUAL_PILOT_RECORD \
+  --secondary-run=1 --seed=42 --dry-run --no-interaction
+
+# Once valid, repeat the freeze command without --dry-run.
+# These three commands incur API usage; execute only when final testing is authorized.
+docker compose exec -T app php artisan study:run final-v1 --run=1 --no-interaction
+docker compose exec -T app php artisan study:run final-v1 --run=2 --no-interaction
+docker compose exec -T app php artisan study:run final-v1 --run=3 --no-interaction
+
+# Offline scoring; no API calls.
+docker compose exec -T app php artisan study:score final-v1 \
+  storage/app/private/studies/test-reference.json --no-interaction
+```
+
+`study:run ... --dry-run` verifies the frozen configuration without requests or writes. `--limit` can pause a repetition after a specified number of new records; rerun with the same ID to continue. Do not create a second study ID to replace unfavourable predictions. Existing freezes and score reports cannot be overwritten; alternative report names must be supplied explicitly.
+
+### Output and interpretation
+
+Reports are saved under `storage/app/private/studies/<study-id>/`: `freeze.json`, `results-v1.json` and `results-v1.csv`. The CSV preserves the run, canonical case, variant, language, reference, both statuses/priorities, database IDs and failure information. Saved reference labels and predictions are never changed by scoring.
+
+The JSON reports each run and the three-run arithmetic mean: common-pair accuracy, five-class macro-F1, misclassification, overtriage, undertriage, coverage, abstention, technical failure and completion-adjusted accuracy. It also provides confusion matrices, reference-level and language breakdowns, five-variant consistency and three-run repeatability. A zero-support class contributes zero to macro-F1; an empty common-pair set yields null, not a fabricated score.
+
+The primary uncertainty calculation follows Section 3.13: 2,000 paired bootstrap resamples of canonical groups, seed 42, with all five variants and all three runs kept together. It recalculates the mean per-run B-minus-A difference and reports linear-interpolated 2.5th/97.5th percentiles plus undefined-resample counts. PHP's local `Randomizer/Mt19937` is recorded for reproducibility.
+
+The secondary McNemar analysis uses English versions from the repetition explicitly selected at freeze time, on common valid pairs. The paper does not select a repetition or quantify “small” discordant counts; the implementation makes these choices explicit before testing: use exact two-sided binomial calculation when discordant pairs are fewer than 25, otherwise the continuity-corrected chi-square approximation. Confirm these implementation choices with the research adviser before freezing. This does not select the best repetition after seeing results. [Statsmodels documents the exact and corrected alternatives](https://www.statsmodels.org/stable/generated/statsmodels.stats.contingency_tables.mcnemar.html).
+
+B is reported as an upstream failure when no accepted A facts are available. That is separate from a rule-engine exception. Both remain in the completion denominator. Retries are saved attempts, not additional cases. Multiple returned model identifiers are flagged for inspection.
+
+The runner and scorer do not establish clinical approval, patient-rule coverage, API access, or actual performance. External benchmarking from the paper (Docker CPU utilization, peak host memory and consistent host/network conditions) still requires a planned measurement session. Historical DEV findings are not final TEST findings.
