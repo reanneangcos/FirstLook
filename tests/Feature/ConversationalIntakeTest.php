@@ -149,6 +149,19 @@ class ConversationalIntakeTest extends TestCase
         $this->assertSame('Mga medical device o catheter: Walay gitaho.', $visit->answers['medical_devices']);
     }
 
+    public function test_bisaya_unknown_synonyms_remain_unknown(): void
+    {
+        $visit = $this->startChat('Bisaya');
+        Http::fake(['api.openai.com/*' => Http::response(self::intakeResponse([
+            self::fact('medical_devices', 'Mga medical device o catheter: Wala ko kabalo.', 'unknown'),
+        ]))]);
+
+        $this->answer($visit, 'Mga medical device o catheter: Wala ko kabalo.')->assertRedirect('/');
+
+        $this->assertArrayHasKey('medical_devices', $visit->refresh()->answers);
+        $this->assertNull($visit->answers['medical_devices']);
+    }
+
     public function test_resolved_both_reply_receives_prior_clarification_context_and_advances(): void
     {
         $visit = $this->startChat();

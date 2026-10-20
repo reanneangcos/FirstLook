@@ -77,7 +77,7 @@ class ScreeningOutputTest extends TestCase
 
     public function test_none_reported_is_accepted_as_an_explicit_absence(): void
     {
-        foreach (['None reported', 'Walay gitaho', 'Walang naiulat',
+        foreach (['None reported', 'Walay gitaho', 'Walay gi-report', 'Walang naiulat', 'Walang iniulat',
             'Known allergies: None reported.', 'Mga medical device o catheter: Walay gitaho.'] as $value) {
             $patient = PatientFields::only(MockScreening::input()['patient']);
             $patient['allergies'] = $value;

@@ -9,7 +9,9 @@ final class PatientFollowUp
         return in_array(self::normalize($answer), [
             'unknown', 'not known', 'not reported', 'not supplied', 'not stated', 'not given',
             'not sure', 'unsure', 'i don\'t know', 'i dont know', 'i do not know', 'unable to report',
-            'ambot', 'wala kabalo', 'wala ko kabalo', 'wala mahibaloi', 'wala gihatag', 'wala gisulti',
+            'ambot', 'wala kabalo', 'wa kabalo', 'wala ko kabalo', 'wa ko kabalo',
+            'wala kahibalo', 'wala ko kahibalo', 'wa ko kahibalo', 'wala mahibaloi',
+            'wala mahibaw-an', 'wala nahibaw-an', 'wala gihatag', 'wala gisulti',
             'hindi alam', 'di alam', 'hindi ko alam', 'hindi sinabi', 'hindi ibinigay',
         ], true);
     }

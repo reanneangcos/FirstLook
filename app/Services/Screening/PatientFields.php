@@ -69,7 +69,10 @@ final class PatientFields
         $normalized = mb_strtolower(trim($value, " \t\n\r\0\x0B."));
 
         return $normalized === 'none reported'
-            || in_array($normalized, ['walay gitaho', 'walang naiulat'], true)
-            || preg_match('/:\s*(?:none reported|walay gitaho|walang naiulat)(?:[.!?]|$)/u', $normalized) === 1;
+            || in_array($normalized, [
+                'walay gitaho', 'walay gi report', 'walay gi-report',
+                'walang naiulat', 'walang iniulat', 'walang naiuulat',
+            ], true)
+            || preg_match('/:\s*(?:none reported|walay\s+(?:gi\s*report|gi-report|gitaho)|walang\s+(?:naiulat|iniulat|naiuulat))(?:[.!?]|$)/u', $normalized) === 1;
     }
 }
