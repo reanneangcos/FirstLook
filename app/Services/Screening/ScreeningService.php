@@ -30,6 +30,7 @@ class ScreeningService
             : (array_key_exists($preferredLanguage, PatientChatContent::LOCALES) ? $preferredLanguage : 'English');
         $prompt = $studyCriteria ? app(StudyProtocol::class)->prompt()
             : file_get_contents(resource_path('prompts/'.$promptVersion.'.txt'));
+        $prompt = str_replace('{{normalization_instructions}}', (new NormalizedPatientFacts)->instructions(), $prompt);
         $prompt = str_replace('{{response_language}}', $responseLanguage ?? 'English', $prompt);
         if ($responseLanguage !== null) {
             $prompt .= "\n\n".PatientChatContent::voiceGuidance($responseLanguage, forScreening: true);
@@ -56,6 +57,7 @@ class ScreeningService
                 'evaluation' => $evaluationMetadata,
                 'schema_version' => config('triage.schema_version'),
                 'validation_version' => ScreeningOutput::VALIDATION_VERSION,
+                'normalization_version' => NormalizedPatientFacts::VERSION,
                 'retry_feedback_version' => self::RETRY_FEEDBACK_VERSION,
                 'classification_mode' => $studyCriteria ? 'reviewed_study_criteria' : config('triage.classification_mode'),
                 'criteria_status' => $studyCriteria ? 'reviewed_definitions' : 'pending_clinical_review',
@@ -119,7 +121,7 @@ class ScreeningService
                         });
 
                         if ($evaluateRules) {
-                            $this->saveRuleResult($session, $parsed['extracted_facts']);
+                            $this->saveRuleResult($session, $parsed['extracted_facts'], $parsed['normalized_facts']);
                         }
 
                         return $session->fresh();
@@ -165,6 +167,8 @@ class ScreeningService
         $instruction = match ($error->failureCode) {
             'unknown_reported_as_known' => 'An unreported input was treated as a known fact. Use state unknown with null value and evidence for missing inputs and reporting placeholders.',
             'ungrounded_fact' => 'Evidence did not exactly match its source field. Copy the original characters verbatim; do not translate, spell-correct, or normalize dialect words. Value and evidence must be identical.',
+            'ungrounded_normalized_fact' => 'A normalized concept lacks a verbatim evidence anchor in extracted_facts. Keep the original source quote and field. Normalize only the concept identifier, never its evidence. Do not use tests or devices as symptom evidence.',
+            'invalid_normalized_facts' => 'Use the allowed normalized concept identifiers and states, once per concept. Include evidence for known facts; use unknown for ambiguity. Do not add ESI labels, diagnoses, high-risk judgments or resource counts.',
             default => 'The response did not satisfy the output schema. Return one complete JSON object with the required fields and valid types.',
         };
 
@@ -178,13 +182,13 @@ class ScreeningService
     }
 
     /** @param list<array{field: string, state: string, value: ?string, evidence: ?string}> $facts */
-    private function saveRuleResult(ScreeningSession $session, array $facts): void
+    private function saveRuleResult(ScreeningSession $session, array $facts, array $normalizedFacts): void
     {
         /** The patient workflow has no approved clinical-assessment or measured-vitals input. */
-        $session->update(['method_b_input' => ['extracted_facts' => $facts, 'clinical_assessment' => []],
+        $session->update(['method_b_input' => ['extracted_facts' => $facts, 'normalized_facts' => $normalizedFacts, 'clinical_assessment' => []],
             'method_b_rule_version' => $this->rules->version()]);
         try {
-            $result = $this->rules->evaluate($facts);
+            $result = $this->rules->evaluate($facts, [], $normalizedFacts);
             $session->update(['method_b_status' => $result['status'], 'method_b_priority' => $result['priority'],
                 'method_b_rule_version' => $result['rule_version'], 'method_b_result' => $result]);
         } catch (Throwable $error) {

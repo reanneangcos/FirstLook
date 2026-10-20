@@ -39,11 +39,11 @@ class EsiRuleIntegrationTest extends TestCase
         $this->assertSame(2, $session->method_a_priority);
         $this->assertSame($raw, $session->original_response);
         $this->assertSame($output, $session->parsed_output);
-        $this->assertSame(['extracted_facts' => $output['extracted_facts'], 'clinical_assessment' => []], $session->method_b_input);
+        $this->assertSame(['extracted_facts' => $output['extracted_facts'], 'normalized_facts' => [], 'clinical_assessment' => []], $session->method_b_input);
         $this->assertSame('needs_review', $session->method_b_status);
         $this->assertNull($session->method_b_priority);
-        $this->assertSame((new EsiV4RuleCatalog(deferVitalSigns: true))->version(), $session->method_b_rule_version);
-        $this->assertSame('A', $session->method_b_result['stopped_at']);
+        $this->assertSame(app(RuleLayer::class)->version(), $session->method_b_rule_version);
+        $this->assertSame('no_matching_rule', $session->method_b_result['stopped_at']);
         $this->assertSame('2012 Edition', $session->method_b_result['source_document']['edition']);
         $this->assertSame('not_assessed', $session->method_b_result['decision_d']['status']);
         $this->get('/admin/screenings/'.$session->id)->assertInertia(fn (Assert $page) => $page
@@ -61,7 +61,7 @@ class EsiRuleIntegrationTest extends TestCase
                 return 'failure-fixture-only';
             }
 
-            public function evaluate(array $understoodFacts, array $clinicalAssessment = []): array
+            public function evaluate(array $understoodFacts, array $clinicalAssessment = [], array $normalizedFacts = []): array
             {
                 throw new \RuntimeException('Private diagnostic should not reach the result.');
             }

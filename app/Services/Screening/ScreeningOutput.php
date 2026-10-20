@@ -6,13 +6,13 @@ use JsonException;
 
 final class ScreeningOutput
 {
-    public const VALIDATION_VERSION = 'evidence-v2';
+    public const VALIDATION_VERSION = 'evidence-v3-normalized';
 
     public function schema(): array
     {
         return [
             'type' => 'object', 'additionalProperties' => false,
-            'required' => ['status', 'priority', 'extracted_facts', 'missing_information', 'explanation'],
+            'required' => ['status', 'priority', 'extracted_facts', 'normalized_facts', 'missing_information', 'explanation'],
             'properties' => [
                 'status' => ['type' => 'string', 'enum' => ['classified', 'needs_review']],
                 'priority' => ['type' => ['integer', 'null'], 'enum' => [1, 2, 3, 4, 5, null]],
@@ -28,6 +28,7 @@ final class ScreeningOutput
                         ],
                     ],
                 ],
+                'normalized_facts' => (new NormalizedPatientFacts)->schema(),
                 'missing_information' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => PatientFields::NAMES]],
                 'explanation' => ['type' => 'string'],
             ],
@@ -79,7 +80,7 @@ final class ScreeningOutput
 
     public function validate(mixed $output, array $patient): void
     {
-        if (! is_array($output) || ! $this->keysMatch($output, ['status', 'priority', 'extracted_facts', 'missing_information', 'explanation'])) {
+        if (! is_array($output) || ! $this->keysMatch($output, ['status', 'priority', 'extracted_facts', 'normalized_facts', 'missing_information', 'explanation'])) {
             throw new InvalidModelOutput;
         }
         $classified = $output['status'] === 'classified';
@@ -124,6 +125,7 @@ final class ScreeningOutput
                 throw new InvalidModelOutput;
             }
         }
+        (new NormalizedPatientFacts)->validate($output['normalized_facts'], $output['extracted_facts']);
     }
 
     private function keysMatch(array $input, array $expected): bool

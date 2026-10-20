@@ -9,7 +9,7 @@ final class PendingRuleLayer implements RuleLayer
         return null;
     }
 
-    public function evaluate(array $understoodFacts, array $clinicalAssessment = []): array
+    public function evaluate(array $understoodFacts, array $clinicalAssessment = [], array $normalizedFacts = []): array
     {
         return ['status' => 'not_implemented', 'priority' => null, 'rule_version' => null, 'trace' => [],
             'matched_rule_ids' => [], 'explanation' => 'No rule evaluation was performed.', 'flags' => [], 'stopped_at' => null];

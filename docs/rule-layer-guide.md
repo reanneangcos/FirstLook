@@ -6,13 +6,15 @@ The clinical catalog now identifies the **2012 Edition, AHRQ Publication 12-0014
 
 `config/esi.php` still selects `handbook_pre_screening`. This engine executes explicit clinical A/B/C assessments with a separately reviewed provisional D branch. It does not silently turn narrative symptoms into those assessments. The patient-report alternative executes reviewed exact-text conditions and exclusions using the 15 allowed fields.
 
-**Current blocker:** the project has no configured patient-response mappings or approval records. The final-study command now detects this mismatch before sending a request. Passing software tests does not supply those missing clinical conditions.
+**Current blocker:** 18 patient-response mappings are now configured as unvalidated drafts; none has clinical approval. Their A/B exclusion bundles, resource expectations and wording need review. The final-study command blocks them before any API request. Software tests do not establish clinical validity.
 
 Read-only checks:
 
 ```bash
 docker compose exec -T app php artisan study:check --no-interaction
 docker compose exec -T app php artisan study:check --review --no-interaction
+docker compose exec -T app php artisan esi:patient-preview --no-interaction
+docker compose exec -T app php artisan esi:patient-preview --markdown --no-interaction
 docker compose exec -T app php artisan esi:preview --json --no-interaction
 ```
 
@@ -68,9 +70,39 @@ If no valid pairs exist, conditional comparison is **not estimable**. Report cov
 
 The selectable `provisional_patient_report` mode uses `ProvisionalEsiRuleLayer`. After mappings are reviewed and configured, it can operate on patient reports without measured vital signs. It records provisional predictions with `decision_d.status = not_assessed`. It is not the active default.
 
-**No clinical mappings are approved or enabled.** The team confirmed that the workbook contains validated case labels without written rationales or general rule conditions. `config/esi.php` therefore has empty `provisional_rules` and `provisional_approvals`. Current patient submissions will continue to return Needs Review for Method B. Software tests use clearly fictional tokens and approvals; those must never become study criteria.
+**No clinical mappings are approved or active in patient decisions.** `config/esi.php` now obtains 18 definitions from `DraftPatientMappings`; `provisional_approvals` remains empty. The existing validated case labels have not been changed or used to generate these proposals. Current patient submissions still use `handbook_pre_screening`. Selecting the patient-report mode alone will not approve the drafts. Software fixtures and preview candidates must not become clinical approval records or final-study results.
 
 The existing `EsiV4RuleLayer` remains available under `esi.mode = clinical_esi_v4`. Its A–D assessments and measured-vitals requirement are unchanged. The selectable `provisional_patient_report` method is a separate study adaptation and cannot be described as complete clinical ESI v4.
+
+## Source-linked patient-mapping drafts
+
+`DraftPatientMappings` contains 18 explicit proposals derived from named handbook examples. They are **adaptations**, not rules whose clinical validation transfers from the handbook. The downloaded 2012 government-source PDF has SHA-256 `0a3c86679e461b7410f8df534ee7cf59c7424dc4e522dbeb5fcb0f0cce62ed09`.
+
+| Decision / draft candidate | Included profiles | Source in the 2012 handbook |
+| --- | --- | --- |
+| A / 1 | Current proxy report of absent breathing and responsiveness | Chapter 2, pp. 8–11 |
+| B / 2 | Concerning chest-symptom cluster; sudden weakness and speech change; first sudden worst headache; known allergy with throat tightening; reported fever during chemotherapy; recent used-needle exposure; excessive medicine ingestion; new confusion; current suicidal intent; severe pain with cancer history | Chapter 2, p. 12; Chapter 3, pp. 18–22 and 26–27 |
+| C / provisional 3 | Right lower abdominal symptoms with nausea/reduced appetite; unilateral lower-leg symptoms after travel | Table 4-2, p. 33; D remains unassessed |
+| C / 4 | Isolated ankle-injury profile; narrow urinary-symptom profile; isolated finger-cut profile | Tables 4-1/4-2, pp. 30–33; Chapter 9, cases 13/21 |
+| C / 5 | Routine blood-pressure prescription refill; simple dressing recheck | Tables 4-1/4-2, pp. 30 and 33 |
+
+The catalogue records exact positive conditions, proposed earlier-decision exclusions, resource rationale, source location and the clinical information omitted from the source examples. It does not infer a diagnosis, normal vital signs or an actual resource count. C profiles encode a proposed resource-related expectation, which is separately identified for review; a requested/completed test or existing device cannot supply it.
+
+The shared A/B exclusion sentences are **unvalidated proposals**, not a proven clinical screening instrument. A broad denial of symptoms does not establish absence of every high-risk condition. Each mapping requires a nurse to review whether its proposed exclusions and context are adequate; a signature on the handbook's decision-order diagram alone does not approve these adaptations.
+
+The wording currently contains English review specimens only. Matching requires the entire accepted evidence excerpt and its state. Unlisted synonyms, Tagalog, Bisaya and code-switch phrasing may abstain. The LLM still handles multilingual input in its existing workflow, but the deterministic rules do not silently translate or infer equivalence. Add and review exact language equivalents before freezing any study that depends on these mappings.
+
+### Preview and review report
+
+`esi:patient-preview` produces 18 deliberately constructed matching examples plus six unresolved examples: missing A/B exclusions, pain score alone, tests/devices alone, an unlisted presentation, contradictory exclusion wording and a non-adult input. These are software demonstrations, not DEV results, validation findings or evidence of coverage. Every result keeps `priority=null`, `status=draft_preview` and `study_eligible=false`; a proposed level appears only in `candidate_priority`. Normal evaluation continues to require approval of the exact definition hash.
+
+Use `--markdown` for a readable report containing each rule's conditions and blank review fields. Use `--json` for the full audit traces, or `--input=/path/to/fictional-facts.json` for one list of up to 15 already-extracted fictional facts. No option performs an LLM call, records a nurse approval, or writes to the patient/study database.
+
+The review exports are under `storage/app/private/studies/review/`. The `patient-mapping-drafts.md` report is intended for the nurse; `patient-mapping-drafts.json` contains the machine-readable definitions and traces.
+
+### Coverage limits
+
+The handbook itself calls its high-risk examples non-exhaustive (Chapter 3, pp. 17 and 27). There is no claim of coverage of every symptom, combination, age group, medication or clinical condition. Unmatched or unresolved input returns Needs Review, with an explicit reason. Supporting a deterministic response for every input is different from supporting a numerical ESI prediction for every condition. No source establishes that this patient-text adaptation is clinically validated.
 
 ## Evidence supporting the design
 

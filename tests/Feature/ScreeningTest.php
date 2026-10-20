@@ -72,11 +72,11 @@ class ScreeningTest extends TestCase
         Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope(MockScreening::output(2)))]);
         $this->post('/admin/screenings', MockScreening::input())->assertRedirect();
         $session = ScreeningSession::where('id', '!=', $previous->id)->firstOrFail();
-        $this->assertSame('screening-v0.6-grounded-retries', $session->prompt_version);
+        $this->assertSame('screening-v0.7-normalized-facts', $session->prompt_version);
         $this->assertSame('exploratory_llm_only', $session->request_settings['classification_mode']);
         $this->assertSame('pending_clinical_review', $session->request_settings['criteria_status']);
         $this->assertNull($session->request_settings['patient_voice_version']);
-        $this->assertSame(str_replace('{{response_language}}', 'English', file_get_contents(resource_path('prompts/screening-v0.6-grounded-retries.txt'))), $session->prompt_text);
+        $this->assertSame(str_replace(['{{response_language}}', '{{normalization_instructions}}'], ['English', (new \App\Services\Screening\NormalizedPatientFacts)->instructions()], file_get_contents(resource_path('prompts/screening-v0.7-normalized-facts.txt'))), $session->prompt_text);
         $this->assertSame(2, $session->method_a_priority);
         $this->assertNull($session->method_b_priority);
         $this->assertSame('needs_review', $previous->fresh()->method_a_status);
@@ -111,7 +111,7 @@ class ScreeningTest extends TestCase
     public function test_unknown_adult_age_and_empty_record_can_be_saved_without_inventing_information(): void
     {
         Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope([
-            'status' => 'needs_review', 'priority' => null, 'extracted_facts' => [],
+            'status' => 'needs_review', 'priority' => null, 'extracted_facts' => [], 'normalized_facts' => [],
             'missing_information' => ['age', 'main_complaint'], 'explanation' => 'MOCK: information is unknown.',
         ]))]);
         $data = MockScreening::input();
@@ -182,7 +182,7 @@ class ScreeningTest extends TestCase
         $this->assertStringNotContainsString('DO-NOT-REPLAY', json_encode($second));
         $this->assertStringNotContainsString('FIXTURE-ONLY', json_encode($second));
         $this->assertSame($second['input'][2]['content'], $session->request_settings['retry_feedback'][2]);
-        $this->assertSame('evidence-v2', $session->request_settings['validation_version']);
+        $this->assertSame('evidence-v3-normalized', $session->request_settings['validation_version']);
     }
 
     public function test_unreported_as_absent_is_rejected_with_feedback_and_never_rewritten_into_a_prediction(): void

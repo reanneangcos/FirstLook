@@ -72,7 +72,7 @@ class ScoreStudy extends Command
                 $failed = $session->processing_status === 'technical_failure';
                 if (! $failed && ($session->method_b_status === 'not_evaluated'
                     || $session->method_b_rule_version !== $payload['snapshot']['rule_version']
-                    || $session->method_b_input !== ['extracted_facts' => $session->parsed_output['extracted_facts'], 'clinical_assessment' => []]
+                    || $session->method_b_input !== ['extracted_facts' => $session->parsed_output['extracted_facts'], 'normalized_facts' => $session->parsed_output['normalized_facts'], 'clinical_assessment' => []]
                     || $session->method_a_priority !== $session->parsed_output['priority']
                     || $session->method_a_status !== $session->parsed_output['status']
                     || $session->method_b_priority !== ($session->method_b_result['priority'] ?? null)

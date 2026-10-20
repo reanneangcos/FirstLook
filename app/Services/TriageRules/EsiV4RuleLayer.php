@@ -21,7 +21,7 @@ final class EsiV4RuleLayer implements RuleLayer
      * @param  array<string, array<string, mixed>>  $clinicalAssessment
      * @return array<string, mixed>
      */
-    public function evaluate(array $understoodFacts, array $clinicalAssessment = []): array
+    public function evaluate(array $understoodFacts, array $clinicalAssessment = [], array $normalizedFacts = []): array
     {
         return $this->decide($understoodFacts, $clinicalAssessment, false);
     }

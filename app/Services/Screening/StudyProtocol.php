@@ -2,6 +2,7 @@
 
 namespace App\Services\Screening;
 
+use App\Services\TriageRules\DraftPatientMappings;
 use App\Services\TriageRules\EsiV4RuleCatalog;
 use App\Services\TriageRules\ProvisionalEsiRuleCatalog;
 use App\Services\TriageRules\ProvisionalEsiRuleLayer;
@@ -12,9 +13,9 @@ use RuntimeException;
 
 final class StudyProtocol
 {
-    public const VERSION = 'paired-study-v1';
+    public const VERSION = 'paired-study-v2';
 
-    public const PROMPT = 'screening-study-v1';
+    public const PROMPT = 'screening-study-v2';
 
     public function catalog(): ProvisionalEsiRuleCatalog
     {
@@ -57,7 +58,7 @@ final class StudyProtocol
             'active_mode' => config('esi.mode'), 'rule_count' => count($rules),
             'approved_rule_count' => count($rules) - count($unapproved), 'missing_levels' => $missingLevels,
             'source_document' => EsiV4RuleCatalog::SOURCE_DOCUMENT,
-            'limitation' => 'Checks configuration and review records, not clinical validity or expected test accuracy. Exact-text matching may abstain on new wording.'];
+            'limitation' => 'Checks configuration and review records, not clinical validity or extraction accuracy. Rules consume normalized patient concepts with original evidence.'];
     }
 
     public function assertReady(): void
@@ -79,7 +80,8 @@ final class StudyProtocol
 
     public function prompt(): string
     {
-        return str_replace('{{reviewed_criteria}}', json_encode($this->criteria(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+        return str_replace(['{{reviewed_criteria}}', '{{normalization_instructions}}'],
+            [json_encode($this->criteria(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), (new NormalizedPatientFacts)->instructions()],
             file_get_contents(resource_path('prompts/'.self::PROMPT.'.txt')));
     }
 
@@ -139,7 +141,7 @@ final class StudyProtocol
         return $envelope;
     }
 
-    /** Concrete handbook predicates and missing translation decisions for the nurse's review. */
+    /** Concrete handbook predicates and patient-report adaptations for the nurse's review. */
     public function reviewPacket(): array
     {
         $questions = [
@@ -159,6 +161,13 @@ final class StudyProtocol
 
         return ['readiness' => $this->readiness(), 'handbook_decisions' => (new EsiV4RuleCatalog(config('esi.approvals'), true))->rules(),
             'patient_mapping_review' => $questions, 'configured_patient_rules' => $this->catalog()->rules(),
-            'instruction' => 'Review general rules and accepted English/Tagalog/Bisaya wording, not individual TEST labels. Record conditions, exclusions, rationale, reviewer, date, record ID and exact definition hash. No approval is created by this export.'];
+            'draft_proposals' => DraftPatientMappings::proposals(),
+            'coverage_limits' => ['Selected adult handbook examples, not all possible conditions.',
+                'Luna normalizes languages and clear typos into the same concept vocabulary; extraction accuracy needs evaluation.',
+                'Rules compare concept identifiers and states; original-language evidence is retained for audit.',
+                'The A/B negative-report bundles and C resource profiles are unvalidated adaptations.',
+                'Unknown, conflicting or unmatched required information remains Needs Review.'],
+            'concept_definitions' => NormalizedPatientFacts::definitions(),
+            'instruction' => 'Review clinical meanings, conditions and exclusions, not phrase lists or TEST labels. Record rationale, reviewer, date, record ID and exact definition hash. Evaluate language extraction separately. No approval is created by this export.'];
     }
 }

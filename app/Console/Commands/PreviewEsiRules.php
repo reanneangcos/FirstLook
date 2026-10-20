@@ -47,7 +47,8 @@ class PreviewEsiRules extends Command
         }
 
         $this->warn($report['purpose']);
-        $this->line('Source: Esi_Handbook.pdf, ESI v4, May 2005, AHRQ 05-0046-2.');
+        $this->line('Source: '.EsiV4RuleCatalog::SOURCE_DOCUMENT['title'].', '
+            .EsiV4RuleCatalog::SOURCE_DOCUMENT['edition'].', '.EsiV4RuleCatalog::SOURCE_DOCUMENT['publication_number'].'.');
         $this->table(['Fictional condition', 'Candidate', 'Stopped at'], array_map(fn (array $case): array => [
             $case['id'], $case['result']['candidate_label'], $case['result']['stopped_at'],
         ], $cases));

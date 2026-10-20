@@ -3,10 +3,11 @@
 namespace App\Services\TriageRules;
 
 use App\Services\Screening\PatientFields;
+use App\Services\Screening\NormalizedPatientFacts;
 
 final class ProvisionalEsiRuleCatalog
 {
-    public const VERSION = 'provisional-esi-patient-report-1.1.0';
+    public const VERSION = 'provisional-esi-patient-report-2.0.0';
 
     public const DESIGN_SOURCES = [
         'gaber_2025' => 'https://doi.org/10.1038/s41746-025-01684-1',
@@ -20,13 +21,13 @@ final class ProvisionalEsiRuleCatalog
     /** The full definition and approval content is part of the persisted experiment version. */
     public function version(): string
     {
-        return self::VERSION.'+'.substr(self::fingerprint([$this->definitions, $this->approvals]), 0, 16);
+        return self::VERSION.'+'.substr(self::fingerprint([$this->definitions, $this->approvals, NormalizedPatientFacts::definitions()]), 0, 16);
     }
 
     /** @param array<string, mixed> $definition */
     public static function definitionHash(array $definition): string
     {
-        return self::fingerprint($definition);
+        return self::fingerprint([$definition, NormalizedPatientFacts::definitions()]);
     }
 
     /** @return array<string, array<string, mixed>> */
@@ -50,6 +51,7 @@ final class ProvisionalEsiRuleCatalog
                 'rule_id' => $id,
                 'condition' => 'All supporting conditions and earlier-decision exclusions must match their reviewed values and states.',
                 'required_fields' => array_values(array_unique(array_column($conditions, 'field'))),
+                'required_concepts' => array_values(array_unique(array_column($conditions, 'concept'))),
                 'source' => ['algorithm' => EsiV4RuleCatalog::ALGORITHM, 'handbook' => EsiV4RuleCatalog::HANDBOOK, 'section' => $definition['handbook_section']],
                 'reviewer_approval' => $approval,
                 'approved' => $approval['status'] === 'approved'
@@ -98,7 +100,8 @@ final class ProvisionalEsiRuleCatalog
         }
 
         return ($point === 'C' ? $this->hasText($definition['resource_rationale']) : $definition['resource_rationale'] === null)
-            && array_intersect(array_column($definition['conditions'], 'field'), ['main_complaint', 'symptom_description', 'other_symptoms']) !== [];
+            && (array_column($definition['conditions'], 'concept') !== []
+                || array_intersect(array_column($definition['conditions'], 'field'), ['main_complaint', 'symptom_description', 'other_symptoms']) !== []);
     }
 
     private function validConditions(mixed $conditions): bool
@@ -107,6 +110,14 @@ final class ProvisionalEsiRuleCatalog
             return false;
         }
         foreach ($conditions as $condition) {
+            if (is_array($condition) && array_key_exists('concept', $condition)) {
+                if (count($condition) !== 2 || ! is_string($condition['concept'])
+                    || ! isset(NormalizedPatientFacts::definitions()[$condition['concept']])
+                    || ! in_array($condition['state'] ?? null, ['reported', 'absent', 'not_applicable'], true)) {
+                    return false;
+                }
+                continue;
+            }
             if (! is_array($condition) || count($condition) !== 3
                 || ! in_array($condition['field'] ?? null, PatientFields::NAMES, true)
                 || ! in_array($condition['state'] ?? null, ['reported', 'absent', 'not_applicable'], true)

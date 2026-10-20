@@ -19,5 +19,5 @@ interface RuleLayer
      * @param  array<string, array{state: string, value: bool|int|float|null, evidence?: string, source?: string, recorded_by?: string, recorded_at?: string, record_id?: string, unit?: string}>  $clinicalAssessment
      * @return array{status: string, priority: ?int, rule_version: ?string, trace: array, matched_rule_ids: list<string>, explanation: string, flags: list<string>, stopped_at: ?string}
      */
-    public function evaluate(array $understoodFacts, array $clinicalAssessment = []): array;
+    public function evaluate(array $understoodFacts, array $clinicalAssessment = [], array $normalizedFacts = []): array;
 }

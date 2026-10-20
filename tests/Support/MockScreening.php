@@ -22,6 +22,7 @@ final class MockScreening
                 ['field' => 'main_complaint', 'state' => 'reported', 'value' => 'Itchy arm', 'evidence' => 'Itchy arm'],
                 ['field' => 'allergies', 'state' => 'unknown', 'value' => null, 'evidence' => null],
             ],
+            'normalized_facts' => [],
             'missing_information' => ['allergies'],
             'explanation' => 'MOCK RESPONSE: arm itching was reported. Approved classification criteria are pending.',
         ];

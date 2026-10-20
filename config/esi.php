@@ -1,7 +1,9 @@
 <?php
 
+use App\Services\TriageRules\DraftPatientMappings;
+
 return [
-    'mode' => 'handbook_pre_screening',
+    'mode' => 'provisional_patient_report',
 
     /**
      * handbook_pre_screening uses the 2012 edition ESI v4 handbook and a
@@ -12,10 +14,11 @@ return [
 
     /**
      * Study-specific mappings are separate from the clinical ESI v4 algorithm.
-     * The workbook has validated labels only, not documented general rules.
+     * Handbook-linked patient mappings are draft proposals, not validated rules.
+     * Their patient-report exclusions and resource expectations require review.
      * See docs/rule-layer-guide.md before adding definitions or review records.
      */
-    'provisional_rules' => [],
+    'provisional_rules' => DraftPatientMappings::definitions(),
     'provisional_approvals' => [],
 
     /**

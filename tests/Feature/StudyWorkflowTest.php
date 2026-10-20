@@ -107,7 +107,8 @@ class StudyWorkflowTest extends TestCase
     {
         $report = app(StudyProtocol::class)->readiness();
         $this->assertFalse($report['ready']);
-        $this->assertSame(0, $report['rule_count']);
+        $this->assertSame(18, $report['rule_count']);
+        $this->assertSame(0, $report['approved_rule_count']);
         $this->artisan('study:check')->assertFailed();
         $this->artisan('study:freeze', ['input' => $this->inputPath, '--study-id' => 'blocked'])->assertFailed();
         $this->assertDatabaseCount('screening_sessions', 0);

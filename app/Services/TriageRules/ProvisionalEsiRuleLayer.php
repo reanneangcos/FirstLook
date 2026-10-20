@@ -3,6 +3,8 @@
 namespace App\Services\TriageRules;
 
 use App\Services\Screening\PatientFields;
+use App\Services\Screening\NormalizedPatientFacts;
+use App\Services\Screening\InvalidModelOutput;
 
 final class ProvisionalEsiRuleLayer implements RuleLayer
 {
@@ -14,7 +16,28 @@ final class ProvisionalEsiRuleLayer implements RuleLayer
     }
 
     /** @param list<array<string, mixed>> $understoodFacts @param array<string, array<string, mixed>> $clinicalAssessment @return array<string, mixed> */
-    public function evaluate(array $understoodFacts, array $clinicalAssessment = []): array
+    public function evaluate(array $understoodFacts, array $clinicalAssessment = [], array $normalizedFacts = []): array
+    {
+        return $this->decide($understoodFacts, $clinicalAssessment, $normalizedFacts, false);
+    }
+
+    /** Review-only execution: never changes approval records or produces a scored priority. */
+    public function preview(array $understoodFacts, array $normalizedFacts = []): array
+    {
+        $candidate = $this->decide($understoodFacts, [], $normalizedFacts, true);
+
+        return array_replace($candidate, [
+            'status' => 'draft_preview', 'priority' => null,
+            'candidate_status' => $candidate['status'], 'candidate_priority' => $candidate['priority'],
+            'candidate_label' => $candidate['display_label'],
+            'display_label' => 'Unvalidated patient-mapping preview',
+            'study_eligible' => false, 'approval_enforced' => false,
+            'explanation' => 'Unvalidated proposal for fictional review only. '.$candidate['explanation'],
+        ]);
+    }
+
+    /** @param list<array<string, mixed>> $understoodFacts @param array<string, mixed> $clinicalAssessment */
+    private function decide(array $understoodFacts, array $clinicalAssessment, array $normalizedFacts, bool $preview): array
     {
         if ($clinicalAssessment !== []) {
             return $this->result([], null, 'Clinical observations are outside this patient-report prediction method.', 'scope');
@@ -26,6 +49,18 @@ final class ProvisionalEsiRuleLayer implements RuleLayer
                 return $this->result([], null, 'The extracted facts contain unsupported or duplicate fields.', 'input');
             }
             $facts[$fact['field']] = $fact;
+        }
+        try {
+            (new NormalizedPatientFacts)->validate($normalizedFacts, $understoodFacts);
+        } catch (InvalidModelOutput $error) {
+            return $this->result([], null, 'Normalized patient facts failed validation: '.$error->failureCode.'.', 'input');
+        }
+        $concepts = array_column($normalizedFacts, null, 'concept');
+        if (array_any($normalizedFacts, fn (array $fact): bool => $fact['state'] === 'contradictory')
+            || $this->conflictingConcepts($concepts)) {
+            $result = $this->result([], null, 'Reported concepts contain an unresolved contradiction. Clarify the original patient statements.', 'input');
+            $result['conflicting_evidence'] = $normalizedFacts;
+            return $result;
         }
         $age = $facts['age'] ?? [];
         if (($age['state'] ?? null) !== 'reported' || ! is_string($age['value'] ?? null)
@@ -39,13 +74,17 @@ final class ProvisionalEsiRuleLayer implements RuleLayer
 
         $trace = [];
         foreach (['A', 'B', 'C'] as $point) {
+            if ($point === 'C' && isset($concepts['unmapped_symptom'])
+                && $concepts['unmapped_symptom']['state'] !== 'absent') {
+                return $this->result($trace, null, 'An additional symptom has no supported interpretation in the current vocabulary.', 'C');
+            }
             $matches = [];
             $blocked = false;
             foreach ($rules as $rule) {
                 if ($rule['decision_point'] !== $point) {
                     continue;
                 }
-                $entry = $this->evaluateRule($rule, $facts);
+                $entry = $this->evaluateRule($rule, $facts, $concepts, $preview);
                 $trace[] = $entry;
                 if ($entry['outcome'] === 'matched') {
                     $matches[] = $rule;
@@ -71,11 +110,21 @@ final class ProvisionalEsiRuleLayer implements RuleLayer
     }
 
     /** @param array<string, mixed> $rule @param array<string, array<string, mixed>> $facts @return array<string, mixed> */
-    private function evaluateRule(array $rule, array $facts): array
+    private function evaluateRule(array $rule, array $facts, array $concepts, bool $preview): array
     {
         $observations = [];
         foreach (['support' => $rule['conditions'], ...$rule['exclusions']] as $purpose => $conditions) {
             foreach ($conditions as $condition) {
+                if (isset($condition['concept'])) {
+                    $concept = $concepts[$condition['concept']] ?? null;
+                    $state = $concept['state'] ?? 'missing';
+                    $available = in_array($state, ['reported', 'absent', 'not_applicable'], true);
+                    $observations[] = ['concept' => $condition['concept'], 'purpose' => $purpose,
+                        'state' => $state, 'evidence' => $concept['evidence'] ?? [],
+                        'matches' => $available ? $state === $condition['state'] : null,
+                        'issue' => $available ? null : $condition['concept'].':'.$state];
+                    continue;
+                }
                 $fact = $facts[$condition['field']] ?? null;
                 $state = $fact['state'] ?? 'missing';
                 $value = $fact['value'] ?? null;
@@ -93,20 +142,58 @@ final class ProvisionalEsiRuleLayer implements RuleLayer
             }
         }
         $outcome = array_any($observations, fn (array $item): bool => $item['matches'] === false) ? 'not_matched'
-            : (array_any($observations, fn (array $item): bool => $item['matches'] === null) || ! $rule['approved'] ? 'blocked' : 'matched');
+            : (array_any($observations, fn (array $item): bool => $item['matches'] === null) || (! $preview && ! $rule['approved']) ? 'blocked' : 'matched');
+        /**
+         * An unmentioned presentation is unresolved, not a negative assessment.
+         * Later rules still require their own explicit A/B exclusions. A positively
+         * reported presentation with incomplete context blocks later decisions.
+         */
+        if (isset($rule['conditions'][0]['concept']) && $observations[0]['matches'] === null) {
+            $outcome = 'unresolved';
+        }
 
         return $rule + [
             'outcome' => $outcome,
+            'approval_enforced' => ! $preview,
             'action' => match ($outcome) {
-                'matched' => 'provisional_esi_'.$rule['priority'], 'blocked' => 'needs_review', default => 'no_match'
+                'matched' => 'provisional_esi_'.$rule['priority'], 'blocked', 'unresolved' => 'needs_review', default => 'no_match'
             },
             'observations' => $observations,
             'matched_evidence' => $outcome === 'matched' ? array_column($observations, 'evidence') : [],
-            'blocking_reasons' => $outcome === 'blocked' ? array_values(array_filter([
-                ...($rule['approved'] ? [] : ['rule_not_approved_for_this_definition']),
+            'blocking_reasons' => in_array($outcome, ['blocked', 'unresolved'], true) ? array_values(array_filter([
+                ...($rule['approved'] || $preview ? [] : ['rule_not_approved_for_this_definition']),
                 ...array_column($observations, 'issue'),
             ])) : [],
         ];
+    }
+
+    /** Explicit semantic incompatibilities; no clinical severity or resource inference. */
+    private function conflictingConcepts(array $concepts): bool
+    {
+        $pairs = [
+            ['breathing_without_help', 'breathing'],
+            ['responding_normally', 'responds_to_voice'],
+            ['chest_pressure', 'chest_discomfort'],
+            ['right_lower_abdominal_pain', 'abdominal_pain'],
+            ['worst_ever_headache', 'headache'],
+            ['current_suicidal_intent', 'self_harm_thoughts'],
+            ['cancer_history', 'known_medical_conditions'],
+            ['hypertension_history', 'known_medical_conditions'],
+        ];
+        foreach ($pairs as [$specific, $general]) {
+            if (($concepts[$specific]['state'] ?? null) === 'reported'
+                && ($concepts[$general]['state'] ?? null) === 'absent') {
+                return true;
+            }
+        }
+        foreach (['severe_pain', 'moderate_pain', 'mild_pain_or_discomfort', 'headache', 'chest_pressure',
+            'right_lower_abdominal_pain', 'one_sided_lower_leg_pain', 'pain_on_weight_bearing'] as $pain) {
+            if (($concepts[$pain]['state'] ?? null) === 'reported'
+                && ($concepts['pain_or_discomfort']['state'] ?? null) === 'absent') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @param list<array<string, mixed>> $trace @return array<string, mixed> */
@@ -124,6 +211,8 @@ final class ProvisionalEsiRuleLayer implements RuleLayer
             'flags' => ['patient_report_only', 'decision_d_not_assessed', 'clinical_assessment_pending'],
             'decision_d' => ['status' => 'not_assessed', 'reason' => 'Measured vital signs are outside the study inputs.'],
             'clinical_source' => EsiV4RuleCatalog::HANDBOOK,
+            'source_document' => EsiV4RuleCatalog::SOURCE_DOCUMENT,
+            'normalization_version' => NormalizedPatientFacts::VERSION,
             'design_sources' => ProvisionalEsiRuleCatalog::DESIGN_SOURCES,
         ];
     }
