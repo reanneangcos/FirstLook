@@ -56,7 +56,13 @@ final class PatientFields
         }
 
         return in_array(mb_strtolower(trim($value, " \t\n\r\0\x0B.")), [
-            '', 'not reported', 'none reported', 'not stated', 'unknown', 'hindi naiulat', 'wala gitaho',
+            '', 'not reported', 'not stated', 'unknown', 'hindi naiulat', 'wala gitaho',
         ], true);
+    }
+
+    public static function isNoneReported(mixed $value): bool
+    {
+        return is_string($value)
+            && mb_strtolower(trim($value, " \t\n\r\0\x0B.")) === 'none reported';
     }
 }

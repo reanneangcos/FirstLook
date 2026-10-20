@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Ticket } from 'lucide-react';
 import Layout, { PageHeading } from '../../../Components/Layout';
 import PatientVisitStatus from '../../../Components/PatientVisitStatus';
 import ChatTranscript from '../../../Components/ChatTranscript';
-import { formatDate, label } from '../../../Components/SessionList';
+import { formatDate, label, patientValue } from '../../../Components/SessionList';
 import type { PatientVisit } from '../../../types';
 
 export default function Show({ patient }: { patient: PatientVisit }) {
@@ -76,7 +76,7 @@ export default function Show({ patient }: { patient: PatientVisit }) {
                             {Object.entries(patient.answers ?? {}).map(([field, value]) => (
                                 <div key={field}>
                                     <dt>{label(field)}</dt>
-                                    <dd>{value ?? 'Unknown'}</dd>
+                                    <dd>{patientValue(value)}</dd>
                                 </div>
                             ))}
                         </dl>

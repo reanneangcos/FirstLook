@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ScreeningSession;
 use App\Models\User;
+use App\Services\Screening\NormalizedPatientFacts;
 use App\Services\Screening\ScreeningService;
 use App\Services\TriageRules\RuleLayer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -76,7 +77,7 @@ class ScreeningTest extends TestCase
         $this->assertSame('exploratory_llm_only', $session->request_settings['classification_mode']);
         $this->assertSame('pending_clinical_review', $session->request_settings['criteria_status']);
         $this->assertNull($session->request_settings['patient_voice_version']);
-        $this->assertSame(str_replace(['{{response_language}}', '{{normalization_instructions}}'], ['English', (new \App\Services\Screening\NormalizedPatientFacts)->instructions()], file_get_contents(resource_path('prompts/screening-v0.7-normalized-facts.txt'))), $session->prompt_text);
+        $this->assertSame(str_replace(['{{response_language}}', '{{normalization_instructions}}'], ['English', (new NormalizedPatientFacts)->instructions()], file_get_contents(resource_path('prompts/screening-v0.7-normalized-facts.txt'))), $session->prompt_text);
         $this->assertSame(2, $session->method_a_priority);
         $this->assertNull($session->method_b_priority);
         $this->assertSame('needs_review', $previous->fresh()->method_a_status);
@@ -185,7 +186,7 @@ class ScreeningTest extends TestCase
         $this->assertSame('evidence-v3-normalized', $session->request_settings['validation_version']);
     }
 
-    public function test_unreported_as_absent_is_rejected_with_feedback_and_never_rewritten_into_a_prediction(): void
+    public function test_none_reported_is_saved_as_an_explicit_absence(): void
     {
         $input = MockScreening::input();
         $input['patient']['allergies'] = 'None reported';
@@ -194,18 +195,13 @@ class ScreeningTest extends TestCase
             'value' => 'None reported', 'evidence' => 'None reported'];
         Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope($bad))]);
         $session = app(ScreeningService::class)->screen($input, auth()->id(), evaluateRules: false);
-        $this->assertSame('technical_failure', $session->processing_status);
-        $this->assertSame('unknown_reported_as_known', $session->failure_code);
-        $this->assertNull($session->method_a_priority);
-        $this->assertNull($session->method_a_status);
+        $this->assertSame('completed', $session->processing_status);
+        $this->assertSame('classified', $session->method_a_status);
+        $this->assertSame(4, $session->method_a_priority);
         $this->assertSame('None reported', $session->patient_input['allergies']);
-        $this->assertCount(3, $session->attempts);
-        $this->assertCount(2, $session->request_settings['retry_feedback']);
-        Http::assertSentCount(3);
-        $requests = Http::recorded();
-        $this->assertCount(3, $requests[2][0]['input']);
-        $this->assertStringContainsString('Field: allergies.', $requests[1][0]['input'][2]['content']);
-        $this->assertStringContainsString('Use state unknown', $requests[1][0]['input'][2]['content']);
+        $this->assertCount(1, $session->attempts);
+        $this->assertArrayNotHasKey('retry_feedback', $session->request_settings);
+        Http::assertSentCount(1);
     }
 
     public function test_timeouts_are_recorded_without_exception_messages_or_credentials(): void

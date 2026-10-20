@@ -154,6 +154,9 @@ class IntakeInterpreter
                 || ! str_contains($reply, $fact['evidence'])) {
                 throw new InvalidIntakeResponse('ungrounded_fact');
             }
+            if ($fact['state'] === 'unknown' && PatientFields::isNoneReported($fact['evidence'])) {
+                $fact['state'] = 'absent';
+            }
             if ($fact['state'] !== 'unknown' && preg_match('/\b(maybe|perhaps|possibly|probably|unsure|not sure|i think|i guess|siguro|tingali|yata|guro)\b/u', mb_strtolower($fact['evidence']))) {
                 $fact['state'] = 'unclear';
             }

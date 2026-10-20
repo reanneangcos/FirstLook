@@ -108,6 +108,9 @@ final class ScreeningOutput
             if (PatientFields::isUnreported($source) && $fact['state'] !== 'unknown') {
                 throw new InvalidModelOutput('unknown_reported_as_known', $fact['field']);
             }
+            if (PatientFields::isNoneReported($source) && $fact['state'] !== 'absent') {
+                throw new InvalidModelOutput('none_reported_as_unknown', $fact['field']);
+            }
             if ($fact['state'] === 'unknown') {
                 if ($fact['value'] !== null || $fact['evidence'] !== null) {
                     throw new InvalidModelOutput;

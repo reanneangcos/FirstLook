@@ -50,7 +50,7 @@ class ScreeningOutputTest extends TestCase
 
     public static function unreportedValues(): array
     {
-        return [[null], [''], ['  '], ['None reported'], [' Not reported. '], ['NOT STATED'],
+        return [[null], [''], ['  '], [' Not reported. '], ['NOT STATED'],
             ['Unknown'], ['Hindi naiulat'], ['Wala gitaho']];
     }
 
@@ -73,6 +73,29 @@ class ScreeningOutputTest extends TestCase
         }
         $output = MockScreening::output(4);
         $this->assertSame($output, (new ScreeningOutput)->parse(json_encode(MockScreening::envelope($output)), $patient));
+    }
+
+    public function test_none_reported_is_accepted_as_an_explicit_absence(): void
+    {
+        $patient = PatientFields::only(MockScreening::input()['patient']);
+        $patient['allergies'] = 'None reported';
+        $output = MockScreening::output(4);
+        $output['extracted_facts'][1] = ['field' => 'allergies', 'state' => 'absent',
+            'value' => 'None reported', 'evidence' => 'None reported'];
+
+        $this->assertSame($output, (new ScreeningOutput)->parse(json_encode(MockScreening::envelope($output)), $patient));
+    }
+
+    public function test_none_reported_cannot_be_reclassified_as_unknown(): void
+    {
+        $patient = PatientFields::only(MockScreening::input()['patient']);
+        $patient['allergies'] = 'None reported';
+        $output = MockScreening::output(4);
+        $output['extracted_facts'][1] = ['field' => 'allergies', 'state' => 'unknown',
+            'value' => null, 'evidence' => null];
+
+        $this->expectException(InvalidModelOutput::class);
+        (new ScreeningOutput)->validate($output, $patient);
     }
 
     public function test_explicit_negatives_inapplicability_and_longer_statements_keep_their_meaning(): void

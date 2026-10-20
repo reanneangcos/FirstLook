@@ -1,7 +1,7 @@
 import { Link } from '@inertiajs/react';
 import { ArrowLeft, CircleAlert, FileJson, MessageSquareText, UserRound } from 'lucide-react';
 import Layout, { PageHeading } from '../../Components/Layout';
-import { formatDate, label, StatusBadge } from '../../Components/SessionList';
+import { formatDate, label, patientValue, StatusBadge } from '../../Components/SessionList';
 import type { Session } from '../../types';
 
 function JsonBlock({ value }: { value: unknown }) {
@@ -121,7 +121,7 @@ export default function Show({ screening: s }: { screening: Session }) {
                                 <div key={key}>
                                     <dt>{label(key)}</dt>
                                     <dd className={value === null ? 'unknown' : ''}>
-                                        {value ?? 'Unknown'}
+                                        {patientValue(value)}
                                     </dd>
                                 </div>
                             ))}
@@ -145,7 +145,7 @@ export default function Show({ screening: s }: { screening: Session }) {
                                             <strong>{label(f.field)}</strong>
                                             <span className="small-tag">{label(f.state)}</span>
                                         </div>
-                                        <p>{f.value ?? 'Unknown'}</p>
+                                        <p>{patientValue(f.value)}</p>
                                         {f.evidence && (
                                             <small>Source excerpt: “{f.evidence}”</small>
                                         )}

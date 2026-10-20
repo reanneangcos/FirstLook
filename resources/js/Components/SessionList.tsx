@@ -16,6 +16,14 @@ export function label(value: string) {
     return value.replaceAll('_', ' ').replace(/^./, (x) => x.toUpperCase());
 }
 
+export function patientValue(value: string | number | null | undefined) {
+    if (typeof value === 'string' && value.trim().replace(/[.]+$/, '').toLowerCase() === 'none reported') {
+        return 'None';
+    }
+
+    return value ?? 'Unknown';
+}
+
 export function StatusBadge({ session }: { session: Session }) {
     const status =
         session.processing_status === 'completed'
