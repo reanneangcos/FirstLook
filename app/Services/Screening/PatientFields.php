@@ -62,7 +62,13 @@ final class PatientFields
 
     public static function isNoneReported(mixed $value): bool
     {
-        return is_string($value)
-            && mb_strtolower(trim($value, " \t\n\r\0\x0B.")) === 'none reported';
+        if (! is_string($value)) {
+            return false;
+        }
+
+        $normalized = mb_strtolower(trim($value, " \t\n\r\0\x0B."));
+
+        return $normalized === 'none reported'
+            || preg_match('/:\s*none reported(?:[.!?]|$)/u', $normalized) === 1;
     }
 }

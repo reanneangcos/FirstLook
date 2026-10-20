@@ -97,7 +97,7 @@ class ConversationalIntakeTest extends TestCase
     }
 
     #[DataProvider('languages')]
-    public function test_complete_record_accepts_explicit_unknowns_without_repeating_questions(string $language): void
+    public function test_complete_record_preserves_explicit_unknowns_and_absences_without_repeating_questions(string $language): void
     {
         $visit = $this->startChat($language);
         $values = ['age' => '44', 'reported_sex' => 'Female', 'main_complaint' => 'Itchy arm',
@@ -118,9 +118,13 @@ class ConversationalIntakeTest extends TestCase
         $this->assertSame('ready', $visit->refresh()->status);
         $this->assertCount(15, $visit->answers);
         $this->assertSame([], $visit->interview_state['pending_fields']);
-        $this->assertSame(9, $visit->question_index);
+        $this->assertSame(12, $visit->question_index);
         $this->assertNull($visit->answers['allergies']);
-        $this->assertNull($visit->answers['maintenance_medications']);
+        $this->assertSame('Known conditions: None reported.', $visit->answers['known_conditions']);
+        $this->assertSame('Maintenance medications: None reported.', $visit->answers['maintenance_medications']);
+        $this->assertSame('Medical devices or catheters: None reported.', $visit->answers['medical_devices']);
+        $this->assertNull($visit->answers['tests_completed']);
+        $this->assertNull($visit->answers['tests_requested']);
         $this->assertSame(44, $visit->answers['age']);
         $this->assertNull(app(PatientChatService::class)->currentQuestion($visit));
         Http::assertSent(fn ($request): bool => json_decode($request['input'][1]['content'], true)['dataset_field_labels'] === PatientFields::DATASET_COLUMNS);

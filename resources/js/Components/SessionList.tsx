@@ -17,8 +17,14 @@ export function label(value: string) {
 }
 
 export function patientValue(value: string | number | null | undefined) {
-    if (typeof value === 'string' && value.trim().replace(/[.]+$/, '').toLowerCase() === 'none reported') {
-        return 'None';
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (
+            normalized.replace(/[.]+$/, '') === 'none reported' ||
+            /:\s*none reported(?:[.!?]|$)/u.test(normalized)
+        ) {
+            return 'None';
+        }
     }
 
     return value ?? 'Unknown';
