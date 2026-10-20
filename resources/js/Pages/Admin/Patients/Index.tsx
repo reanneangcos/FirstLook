@@ -1,6 +1,6 @@
 import { Link, router, usePoll } from '@inertiajs/react';
 import { Search, ArrowRight, Users } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Layout, { PageHeading } from '../../../Components/Layout';
 import PatientVisitStatus from '../../../Components/PatientVisitStatus';
 import { formatDate } from '../../../Components/SessionList';
@@ -15,6 +15,11 @@ export default function Index({
 }) {
     const [q, setQ] = useState(filters.q);
     const [status, setStatus] = useState(filters.status);
+
+    useEffect(() => {
+        setQ(filters.q);
+        setStatus(filters.status);
+    }, [filters.q, filters.status]);
     usePoll(10000, { only: ['patients'] });
     return (
         <Layout title="Patients & chats">
@@ -22,11 +27,6 @@ export default function Index({
                 eyebrow="ADMIN & HEALTHCARE STAFF"
                 title="Every stub. The whole conversation."
                 description="Review fictional patient chats and their saved preliminary triage results."
-                action={
-                    <Link href="/" className="button secondary">
-                        Open patient chatbot <ArrowRight size={17} />
-                    </Link>
-                }
             />
             <section className="panel">
                 <form
@@ -59,7 +59,15 @@ export default function Index({
                     <select
                         id="patient-status"
                         value={status}
-                        onChange={(event) => setStatus(event.target.value)}
+                        onChange={(event) => {
+                            const newStatus = event.target.value;
+                            setStatus(newStatus);
+                            router.get(
+                                '/admin/patients',
+                                { q, status: newStatus },
+                                { preserveState: true, replace: true },
+                            );
+                        }}
                     >
                         <option value="">All statuses</option>
                         <option value="collecting">In conversation</option>
@@ -69,19 +77,6 @@ export default function Index({
                         <option value="needs_review">Needs review</option>
                         <option value="technical_failure">Technical failure</option>
                     </select>
-                    <button className="button secondary">Search</button>
-                    {(filters.q || filters.status) && (
-                        <Link
-                            href="/admin/patients"
-                            className="text-link"
-                            onClick={() => {
-                                setQ('');
-                                setStatus('');
-                            }}
-                        >
-                            Clear
-                        </Link>
-                    )}
                 </form>
                 {patients.data.length ? (
                     <div className="table-scroll">

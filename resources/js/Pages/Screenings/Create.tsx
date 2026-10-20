@@ -13,7 +13,7 @@ import Field from '../../Components/Field';
 
 const emptyPatient = {
     age: '',
-    reported_sex: '',
+    reported_sex: 'Unknown',
     main_complaint: '',
     symptom_description: '',
     other_symptoms: '',
@@ -123,11 +123,37 @@ export default function Create({ languages }: { languages: string[] }) {
                                 'Age in years',
                                 '18 or above; leave blank if the adult’s exact age is unknown.',
                             )}
-                            {field(
-                                'reported_sex',
-                                'Reported sex',
-                                'Use the reported wording, or leave unknown.',
-                            )}
+                            <div className="field">
+                                <label htmlFor="reported_sex">Reported sex</label>
+                                <p id="reported_sex-hint" className="field-hint">
+                                    Select the reported sex, or Unknown.
+                                </p>
+                                <select
+                                    id="reported_sex"
+                                    value={form.data.patient.reported_sex || 'Unknown'}
+                                    onChange={(e) =>
+                                        form.setData('patient', {
+                                            ...form.data.patient,
+                                            reported_sex: e.target.value,
+                                        })
+                                    }
+                                    aria-invalid={!!errors['patient.reported_sex']}
+                                    aria-describedby={
+                                        errors['patient.reported_sex']
+                                            ? 'reported_sex-error'
+                                            : 'reported_sex-hint'
+                                    }
+                                >
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Unknown">Unknown</option>
+                                </select>
+                                {errors['patient.reported_sex'] && (
+                                    <p role="alert" className="field-error" id="reported_sex-error">
+                                        {errors['patient.reported_sex']}
+                                    </p>
+                                )}
+                            </div>
                         </div>
                     </section>
                     <section className="panel form-section">

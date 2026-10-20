@@ -1,6 +1,6 @@
 import { Link, router } from '@inertiajs/react';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Layout, { NewScreeningLink, PageHeading } from '../../Components/Layout';
 import SessionList from '../../Components/SessionList';
 import type { Pagination } from '../../types';
@@ -14,6 +14,11 @@ export default function Index({
 }) {
     const [q, setQ] = useState(filters.q);
     const [status, setStatus] = useState(filters.status);
+
+    useEffect(() => {
+        setQ(filters.q);
+        setStatus(filters.status);
+    }, [filters.q, filters.status]);
     return (
         <Layout title="Screening history">
             <PageHeading
@@ -53,7 +58,15 @@ export default function Index({
                     <select
                         id="status-filter"
                         value={status}
-                        onChange={(e) => setStatus(e.target.value)}
+                        onChange={(e) => {
+                            const newStatus = e.target.value;
+                            setStatus(newStatus);
+                            router.get(
+                                '/admin/screenings',
+                                { q, status: newStatus },
+                                { preserveState: true, replace: true },
+                            );
+                        }}
                     >
                         <option value="">All statuses</option>
                         <option value="classified">Classified</option>
@@ -61,21 +74,6 @@ export default function Index({
                         <option value="technical_failure">Technical failure</option>
                         <option value="processing">Processing</option>
                     </select>
-                    <button className="button secondary" type="submit">
-                        Search
-                    </button>
-                    {(filters.q || filters.status) && (
-                        <Link
-                            className="text-link"
-                            href="/admin/screenings"
-                            onClick={() => {
-                                setQ('');
-                                setStatus('');
-                            }}
-                        >
-                            Clear
-                        </Link>
-                    )}
                 </form>
                 <SessionList sessions={sessions.data} filtered={!!filters.q || !!filters.status} />
                 <div className="pagination">
