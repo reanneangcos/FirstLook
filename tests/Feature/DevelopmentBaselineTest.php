@@ -143,4 +143,22 @@ class DevelopmentBaselineTest extends TestCase
         $this->assertCount(1, $session->attempts);
         Http::assertSentCount(6);
     }
+
+    public function test_transport_outage_stops_before_consuming_the_rest_of_the_manifest(): void
+    {
+        config(['triage.max_attempts' => 1]);
+        $this->writeManifest($this->manifest());
+        Http::fake(['api.openai.com/*' => Http::sequence()->push([], 503)->push([], 503)->push([], 503)
+            ->push(MockScreening::envelope())->push(MockScreening::envelope())->push(MockScreening::envelope())]);
+        $options = ['input' => $this->inputPath, '--run-id' => 'outage'];
+        $this->artisan('study:dev-baseline', $options)->assertFailed();
+        $this->assertDatabaseCount('screening_sessions', 3);
+        $this->assertSame(3, ScreeningSession::where('failure_code', 'provider_unavailable')->count());
+        Http::assertSentCount(3);
+
+        $this->artisan('study:dev-baseline', $options)->assertSuccessful();
+        $this->assertDatabaseCount('screening_sessions', 6);
+        $this->assertSame(3, ScreeningSession::where('failure_code', 'provider_unavailable')->count());
+        Http::assertSentCount(6);
+    }
 }

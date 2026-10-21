@@ -20,6 +20,9 @@
     <php>
         <!-- Docker also populates $_SERVER, which Laravel reads before $_ENV. -->
         <server name="APP_ENV" value="testing"/>
+        <!-- Existing reviewed-mode regression tests retain their original configuration. Research tests select their mode explicitly. -->
+        <server name="ESI_RULE_MODE" value="provisional_patient_report" force="true"/>
+        <env name="ESI_RULE_MODE" value="provisional_patient_report" force="true"/>
         <server name="CACHE_STORE" value="array"/>
         <server name="SESSION_DRIVER" value="array"/>
         <server name="QUEUE_CONNECTION" value="sync"/>

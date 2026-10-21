@@ -170,7 +170,7 @@ class LocalizedPatientChatTest extends TestCase
         $this->withSession(['patient_visit_id' => $visit->id])->post('/patient/screen', ['scope_confirmed' => true])->assertRedirect('/');
         $screening = $visit->fresh()->screening;
         $this->assertSame('completed', $screening->processing_status);
-        $this->assertSame('screening-v0.7-normalized-facts', $screening->prompt_version);
+        $this->assertSame('screening-v0.8-reporting-states', $screening->prompt_version);
         $this->assertSame($language, $screening->request_settings['response_language']);
         $this->assertSame('patient-voice-v2-casual', $screening->request_settings['patient_voice_version']);
         $this->assertStringContainsString('FirstLook patient voice v2', $screening->prompt_text);

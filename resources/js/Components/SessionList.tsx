@@ -17,26 +17,6 @@ export function label(value: string) {
 }
 
 export function patientValue(value: string | number | null | undefined) {
-    if (typeof value === 'string') {
-        const normalized = value.trim().toLowerCase();
-        if (
-            normalized.replace(/[.]+$/, '') === 'none reported' ||
-            [
-                'walay gitaho',
-                'walay gi report',
-                'walay gi-report',
-                'walang naiulat',
-                'walang iniulat',
-                'walang naiuulat',
-            ].includes(normalized.replace(/[.]+$/, '')) ||
-            /:\s*(?:none reported|walay\s+(?:gi\s*report|gi-report|gitaho)|walang\s+(?:naiulat|iniulat|naiuulat))(?:[.!?]|$)/u.test(
-                normalized,
-            )
-        ) {
-            return 'None';
-        }
-    }
-
     return value ?? 'Unknown';
 }
 

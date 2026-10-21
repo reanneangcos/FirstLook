@@ -73,11 +73,11 @@ class ScreeningTest extends TestCase
         Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope(MockScreening::output(2)))]);
         $this->post('/admin/screenings', MockScreening::input())->assertRedirect();
         $session = ScreeningSession::where('id', '!=', $previous->id)->firstOrFail();
-        $this->assertSame('screening-v0.7-normalized-facts', $session->prompt_version);
+        $this->assertSame('screening-v0.8-reporting-states', $session->prompt_version);
         $this->assertSame('exploratory_llm_only', $session->request_settings['classification_mode']);
         $this->assertSame('pending_clinical_review', $session->request_settings['criteria_status']);
         $this->assertNull($session->request_settings['patient_voice_version']);
-        $this->assertSame(str_replace(['{{response_language}}', '{{normalization_instructions}}'], ['English', (new NormalizedPatientFacts)->instructions()], file_get_contents(resource_path('prompts/screening-v0.7-normalized-facts.txt'))), $session->prompt_text);
+        $this->assertSame(str_replace(['{{response_language}}', '{{normalization_instructions}}'], ['English', (new NormalizedPatientFacts)->instructions()], file_get_contents(resource_path('prompts/screening-v0.8-reporting-states.txt'))), $session->prompt_text);
         $this->assertSame(2, $session->method_a_priority);
         $this->assertNull($session->method_b_priority);
         $this->assertSame('needs_review', $previous->fresh()->method_a_status);
@@ -183,7 +183,30 @@ class ScreeningTest extends TestCase
         $this->assertStringNotContainsString('DO-NOT-REPLAY', json_encode($second));
         $this->assertStringNotContainsString('FIXTURE-ONLY', json_encode($second));
         $this->assertSame($second['input'][2]['content'], $session->request_settings['retry_feedback'][2]);
-        $this->assertSame('evidence-v3-normalized', $session->request_settings['validation_version']);
+        $this->assertSame('evidence-v4-reporting-states', $session->request_settings['validation_version']);
+    }
+
+    public function test_duplicate_concepts_get_grouping_feedback_without_rewriting_the_accepted_prediction(): void
+    {
+        $input = MockScreening::input();
+        $bad = MockScreening::output(2);
+        $fact = ['concept' => 'unmapped_symptom', 'state' => 'reported',
+            'evidence' => [['field' => 'main_complaint', 'quote' => 'Itchy arm']]];
+        $bad['normalized_facts'] = [$fact, $fact];
+        $bad['explanation'] = 'DO-NOT-REPLAY-REJECTED-PRIORITY';
+        $good = MockScreening::output(4);
+        $good['normalized_facts'] = [$fact];
+        Http::fake(['api.openai.com/*' => Http::sequence()
+            ->push(MockScreening::envelope($bad))->push(MockScreening::envelope($good))]);
+
+        $session = app(ScreeningService::class)->screen($input, auth()->id(), evaluateRules: false);
+
+        $this->assertSame('completed', $session->processing_status);
+        $this->assertSame('invalid_normalized_facts', $session->attempts[0]->failure_code);
+        $this->assertSame($good, $session->parsed_output);
+        $this->assertStringContainsString('ONE unmapped_symptom entry', $session->request_settings['retry_feedback'][2]);
+        $this->assertStringNotContainsString('DO-NOT-REPLAY', json_encode(Http::recorded()[1][0]->data()));
+        Http::assertSentCount(2);
     }
 
     public function test_none_reported_is_saved_as_an_explicit_absence(): void
@@ -202,6 +225,34 @@ class ScreeningTest extends TestCase
         $this->assertCount(1, $session->attempts);
         $this->assertArrayNotHasKey('retry_feedback', $session->request_settings);
         Http::assertSentCount(1);
+    }
+
+    public function test_wrong_none_reported_state_receives_specific_feedback_without_replaying_a_priority(): void
+    {
+        $this->mock(RuleLayer::class, function ($mock): void {
+            $mock->shouldNotReceive('evaluate');
+            $mock->shouldNotReceive('version');
+        });
+        $input = MockScreening::input();
+        $input['patient']['allergies'] = 'Known allergies: None reported.';
+        $bad = MockScreening::output(1);
+        $bad['explanation'] = 'DO-NOT-REPLAY-REJECTED-PRIORITY';
+        $good = MockScreening::output(4);
+        $good['extracted_facts'][1] = ['field' => 'allergies', 'state' => 'absent',
+            'value' => $input['patient']['allergies'], 'evidence' => $input['patient']['allergies']];
+        Http::fake(['api.openai.com/*' => Http::sequence()->push(MockScreening::envelope($bad))->push(MockScreening::envelope($good))]);
+
+        $session = app(ScreeningService::class)->screen($input, auth()->id(), evaluateRules: false);
+
+        $this->assertSame('completed', $session->processing_status);
+        $this->assertSame(4, $session->method_a_priority);
+        $this->assertSame('none_reported_as_unknown', $session->attempts[0]->failure_code);
+        $feedback = $session->request_settings['retry_feedback'][2];
+        $this->assertStringContainsString('Use state absent', $feedback);
+        $this->assertStringContainsString('Not reported remains unknown', $feedback);
+        $this->assertStringNotContainsString('DO-NOT-REPLAY', json_encode(Http::recorded()[1][0]->data()));
+        $this->assertSame($good, $session->parsed_output);
+        Http::assertSentCount(2);
     }
 
     public function test_timeouts_are_recorded_without_exception_messages_or_credentials(): void

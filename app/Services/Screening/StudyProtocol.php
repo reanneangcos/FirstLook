@@ -7,18 +7,34 @@ use App\Services\TriageRules\EsiV4RuleCatalog;
 use App\Services\TriageRules\ProvisionalEsiRuleCatalog;
 use App\Services\TriageRules\ProvisionalEsiRuleLayer;
 use App\Services\TriageRules\RuleLayer;
+use App\Services\TriageRules\ResearchEsiRuleCatalog;
+use App\Services\TriageRules\ResearchEsiRuleLayer;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 final class StudyProtocol
 {
-    public const VERSION = 'paired-study-v2';
+    public const VERSION = 'paired-study-v3-research-mode';
 
-    public const PROMPT = 'screening-study-v2';
+    public const PROMPT = 'screening-study-v3';
 
-    public function catalog(): ProvisionalEsiRuleCatalog
+    public function isResearch(): bool
     {
+        return config('esi.mode') === 'research_prototype';
+    }
+
+    public function promptVersion(): string
+    {
+        return $this->isResearch() ? 'screening-study-v4-research' : self::PROMPT;
+    }
+
+    public function catalog(): ProvisionalEsiRuleCatalog|ResearchEsiRuleCatalog
+    {
+        if ($this->isResearch()) {
+            return new ResearchEsiRuleCatalog;
+        }
+
         return new ProvisionalEsiRuleCatalog(config('esi.provisional_rules', []), config('esi.provisional_approvals', []));
     }
 
@@ -26,8 +42,8 @@ final class StudyProtocol
     public function readiness(): array
     {
         $blockers = [];
-        if (config('esi.mode') !== 'provisional_patient_report'
-            || ! app(RuleLayer::class) instanceof ProvisionalEsiRuleLayer) {
+        if (! ($this->isResearch() && app(RuleLayer::class) instanceof ResearchEsiRuleLayer)
+            && (config('esi.mode') !== 'provisional_patient_report' || ! app(RuleLayer::class) instanceof ProvisionalEsiRuleLayer)) {
             $blockers[] = 'The active engine requires clinical assessments that the patient-only workflow does not supply. Select provisional_patient_report after its mappings are reviewed.';
         }
         try {
@@ -40,14 +56,14 @@ final class StudyProtocol
             $blockers[] = 'Patient-response mappings are empty; handbook decision order alone cannot interpret these narrative fields.';
         }
         $unapproved = array_keys(array_filter($rules, fn (array $rule): bool => ! $rule['approved']));
-        if ($unapproved !== []) {
+        if ($unapproved !== [] && ! $this->isResearch()) {
             $blockers[] = 'Unapproved or changed definitions: '.implode(', ', $unapproved).'.';
         }
-        $missingLevels = array_values(array_diff([1, 2, 3, 4, 5], array_column(array_filter($rules, fn (array $rule): bool => $rule['approved']), 'priority')));
+        $missingLevels = array_values(array_diff([1, 2, 3, 4, 5], array_column(array_filter($rules, fn (array $rule): bool => $this->isResearch() || $rule['approved']), 'priority')));
         if ($missingLevels !== []) {
             $blockers[] = 'No approved patient mapping for ESI '.implode(', ', $missingLevels).'.';
         }
-        if (! is_file(resource_path('prompts/'.self::PROMPT.'.txt'))) {
+        if (! is_file(resource_path('prompts/'.$this->promptVersion().'.txt'))) {
             $blockers[] = 'The shared-criteria study prompt is missing.';
         }
         if (! config('triage.model') || ! config('triage.api_key')) {
@@ -57,6 +73,8 @@ final class StudyProtocol
         return ['protocol_version' => self::VERSION, 'ready' => $blockers === [], 'blockers' => $blockers,
             'active_mode' => config('esi.mode'), 'rule_count' => count($rules),
             'approved_rule_count' => count($rules) - count($unapproved), 'missing_levels' => $missingLevels,
+            'research_only' => $this->isResearch(), 'clinical_validation_established' => false,
+            'methodology_change' => $this->isResearch() ? 'Research-authored profiles replace mandatory negative bundles with positive-danger screening; unreported risks stay unassessed. The manuscript review requirement is not satisfied by this mode.' : null,
             'source_document' => EsiV4RuleCatalog::SOURCE_DOCUMENT,
             'limitation' => 'Checks configuration and review records, not clinical validity or extraction accuracy. Rules consume normalized patient concepts with original evidence.'];
     }
@@ -74,15 +92,16 @@ final class StudyProtocol
     {
         return array_values(array_map(fn (array $rule): array => array_intersect_key($rule, array_flip([
             'decision_point', 'priority', 'conditions', 'exclusions', 'handbook_section',
-            'adaptation_rationale', 'resource_rationale', 'explanation',
+            'adaptation_rationale', 'resource_rationale', 'explanation', 'rule_id', 'all', 'any', 'expected_resource_types',
         ])), $this->catalog()->rules()));
     }
 
     public function prompt(): string
     {
-        return str_replace(['{{reviewed_criteria}}', '{{normalization_instructions}}'],
-            [json_encode($this->criteria(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), (new NormalizedPatientFacts)->instructions()],
-            file_get_contents(resource_path('prompts/'.self::PROMPT.'.txt')));
+        return str_replace(['{{reviewed_criteria}}', '{{normalization_instructions}}', '{{danger_signals}}'],
+            [json_encode($this->criteria(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), (new NormalizedPatientFacts)->instructions(),
+                json_encode(['A' => ResearchEsiRuleCatalog::A_SIGNALS, 'B' => ResearchEsiRuleCatalog::B_SIGNALS], JSON_THROW_ON_ERROR)],
+            file_get_contents(resource_path('prompts/'.$this->promptVersion().'.txt')));
     }
 
     /** Secrets and machine paths are deliberately excluded. Local code edits invalidate a freeze. */
@@ -101,9 +120,10 @@ final class StudyProtocol
             'timeout_seconds', 'connect_timeout_seconds', 'max_attempts', 'retry_delay_ms', 'schema_version']));
         $settings['max_attempts'] = min(3, max(1, $settings['max_attempts']));
 
-        return ['protocol_version' => self::VERSION, 'prompt_version' => self::PROMPT,
+        return ['protocol_version' => self::VERSION, 'prompt_version' => $this->promptVersion(),
             'prompt_sha256' => hash('sha256', str_replace('{{response_language}}', 'English', $this->prompt())),
             'reviewed_rules' => $this->catalog()->rules(), 'rule_version' => app(RuleLayer::class)->version(),
+            'research_only' => $this->isResearch(), 'criteria_status' => $this->isResearch() ? 'unvalidated_research_adaptation' : 'reviewed_definitions',
             'settings' => $settings, 'validation_version' => ScreeningOutput::VALIDATION_VERSION,
             'retry_feedback_version' => ScreeningService::RETRY_FEEDBACK_VERSION,
             'schema' => app(ScreeningOutput::class)->schema(), 'files' => $files];

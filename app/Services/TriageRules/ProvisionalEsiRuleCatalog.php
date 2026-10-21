@@ -21,13 +21,13 @@ final class ProvisionalEsiRuleCatalog
     /** The full definition and approval content is part of the persisted experiment version. */
     public function version(): string
     {
-        return self::VERSION.'+'.substr(self::fingerprint([$this->definitions, $this->approvals, NormalizedPatientFacts::definitions()]), 0, 16);
+        return self::VERSION.'+'.substr(self::fingerprint([$this->definitions, $this->approvals, NormalizedPatientFacts::reviewedDefinitions()]), 0, 16);
     }
 
     /** @param array<string, mixed> $definition */
     public static function definitionHash(array $definition): string
     {
-        return self::fingerprint([$definition, NormalizedPatientFacts::definitions()]);
+        return self::fingerprint([$definition, NormalizedPatientFacts::reviewedDefinitions()]);
     }
 
     /** @return array<string, array<string, mixed>> */

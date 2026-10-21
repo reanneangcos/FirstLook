@@ -25,7 +25,7 @@ class ConversationalIntakeTest extends TestCase
         parent::setUp();
         $this->withoutVite();
         Http::preventStrayRequests();
-        config(['triage.intake_version' => 'intake-v5-field-map', 'triage.api_key' => 'mock-only-key',
+        config(['triage.intake_version' => 'intake-v6-reporting-states', 'triage.api_key' => 'mock-only-key',
             'triage.model' => 'gpt-6-luna', 'triage.retry_delay_ms' => 0]);
     }
 
@@ -160,6 +160,40 @@ class ConversationalIntakeTest extends TestCase
 
         $this->assertArrayHasKey('medical_devices', $visit->refresh()->answers);
         $this->assertNull($visit->answers['medical_devices']);
+    }
+
+    public function test_a_reported_correction_after_none_reported_keeps_the_full_statement(): void
+    {
+        $visit = $this->startChat();
+        $reply = 'Known conditions: None reported. Actually, I have asthma.';
+        Http::fake(['api.openai.com/*' => Http::response(self::intakeResponse([
+            self::fact('known_conditions', $reply),
+        ]))]);
+
+        $this->answer($visit, $reply)->assertRedirect('/');
+
+        $this->assertSame($reply, $visit->refresh()->answers['known_conditions']);
+        $fact = $visit->messages()->reorder('id', 'desc')->first()->metadata['facts'][0];
+        $this->assertSame('reported', $fact['state']);
+        $this->assertSame($reply, $fact['evidence']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_unclear_mixed_statement_remains_pending_without_becoming_absent(): void
+    {
+        $visit = $this->startChat();
+        $reply = 'Known conditions: None reported. I may have asthma, I am not sure.';
+        Http::fake(['api.openai.com/*' => Http::response(self::intakeResponse([
+            self::fact('known_conditions', $reply, 'unclear', true),
+        ]))]);
+
+        $this->answer($visit, $reply)->assertRedirect('/');
+
+        $this->assertArrayNotHasKey('known_conditions', $visit->refresh()->answers);
+        $this->assertContains('known_conditions', $visit->interview_state['clarify_fields']);
+        $this->assertSame(['state' => 'unclear', 'evidence' => $reply], $visit->interview_state['unresolved_answers']['known_conditions']);
+        $this->assertSame(0, $visit->question_index);
+        Http::assertSentCount(1);
     }
 
     public function test_resolved_both_reply_receives_prior_clarification_context_and_advances(): void
@@ -401,12 +435,12 @@ class ConversationalIntakeTest extends TestCase
 
         $this->answer($visit, 'Bisaya please')->assertRedirect('/');
 
-        $this->assertSame('intake-v5-field-map', $visit->refresh()->interview_state['version']);
+        $this->assertSame('intake-v6-reporting-states', $visit->refresh()->interview_state['version']);
         $this->assertArrayNotHasKey('main_complaint', $visit->answers);
         $this->assertSame('I feel bad', $visit->interview_state['unresolved_answers']['main_complaint']['evidence']);
         $this->assertSame(0, $visit->question_index);
         $this->assertSame($oldMessage, $visit->messages()->first()->content);
-        $this->assertSame('intake-v5-field-map', $visit->messages()->reorder('id', 'desc')->first()->metadata['intake_version']);
+        $this->assertSame('intake-v6-reporting-states', $visit->messages()->reorder('id', 'desc')->first()->metadata['intake_version']);
         Http::assertSentCount(1);
     }
 

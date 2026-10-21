@@ -63,6 +63,7 @@ class RunPairedStudy extends Command
                 }
                 $done = $existing->pluck('variant_id')->all();
                 $new = 0;
+                $consecutiveTransportFailures = 0;
                 foreach ($cases as $index => $case) {
                     if (in_array($case['variant_id'], $done, true)) {
                         continue;
@@ -78,6 +79,11 @@ class RunPairedStudy extends Command
                     $new++;
                     $this->line(($index + 1).'/600 '.$case['variant_id'].' A:'.($session->method_a_priority ?? $session->method_a_status ?? $session->processing_status)
                         .' B:'.($session->method_b_priority ?? $session->method_b_status));
+                    $consecutiveTransportFailures = in_array($session->failure_code, ['connection_timeout', 'provider_unavailable'], true)
+                        ? $consecutiveTransportFailures + 1 : 0;
+                    if ($consecutiveTransportFailures >= 3) {
+                        throw new RuntimeException('Stopped after three consecutive transport/provider failures. Saved attempts remain unchanged; restore connectivity before resuming the unattempted records.');
+                    }
                     if (in_array($session->failure_code, ['credentials_rejected', 'request_rejected', 'configuration_missing', 'rate_limited'], true)) {
                         throw new RuntimeException('Stopped on a provider/configuration error. The failure is saved and will not be retried as a new case.');
                     }

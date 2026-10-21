@@ -7,6 +7,7 @@ use App\Models\ScreeningSession;
 use App\Services\Screening\PatientFields;
 use App\Services\Screening\ScreeningOutput;
 use App\Services\Screening\ScreeningService;
+use App\Services\Screening\StudyProtocol;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -16,8 +17,8 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use JsonException;
 
-#[Signature('study:dev-baseline {input : DEV-only JSON with patient fields and local identifiers} {--run-id= : Unique development run ID} {--seed=42} {--limit= : Maximum new records this invocation} {--dry-run : Validate and summarize without requests or database writes}')]
-#[Description('Save a resumable, LLM-only development pass; never evaluate Method B')]
+#[Signature('study:dev-baseline {input : DEV-only JSON with patient fields and local identifiers} {--run-id= : Unique development run ID} {--seed=42} {--limit= : Maximum new records this invocation} {--paired-pilot : Explicitly exercise both methods with the final study prompt on DEV only} {--dry-run : Validate and summarize without requests or database writes}')]
+#[Description('Save a resumable LLM-only development pass, or an explicitly selected paired DEV pilot')]
 class RunDevelopmentBaseline extends Command
 {
     public function handle(ScreeningService $service): int
@@ -63,7 +64,15 @@ class RunDevelopmentBaseline extends Command
             return self::FAILURE;
         }
         $cases = collect($manifest['cases'])->sortBy(fn (array $case): string => hash('sha256', $this->option('seed').':'.$case['variant_id']))->values();
-        $this->info('DEV only; Method A only; '.$cases->count().' versions / '.$cases->pluck('dataset_case_id')->unique()->count().' canonical cases.');
+        $pairedPilot = (bool) $this->option('paired-pilot');
+        $protocol = app(StudyProtocol::class);
+        if ($pairedPilot && ! $protocol->readiness()['ready']) {
+            $this->error('Paired pilot requires the study configuration and recorded rule approvals.');
+
+            return self::FAILURE;
+        }
+        $snapshotHash = $pairedPilot ? StudyProtocol::hash($protocol->snapshot()) : null;
+        $this->info('DEV only; '.($pairedPilot ? 'paired software pilot' : 'Method A only').'; '.$cases->count().' versions / '.$cases->pluck('dataset_case_id')->unique()->count().' canonical cases.');
         $this->line(json_encode($cases->countBy('language'), JSON_UNESCAPED_UNICODE));
         if ($this->option('dry-run')) {
             return self::SUCCESS;
@@ -83,6 +92,11 @@ class RunDevelopmentBaseline extends Command
                 ScreeningOutput::VALIDATION_VERSION, ScreeningService::RETRY_FEEDBACK_VERSION,
                 app(ScreeningOutput::class)->schema(),
             ], JSON_THROW_ON_ERROR))];
+        if ($pairedPilot) {
+            $evaluation['purpose'] = 'paired_development_pilot';
+            $evaluation['study_snapshot_sha256'] = $snapshotHash;
+            $evaluation['prompt_sha256'] = hash('sha256', str_replace('{{response_language}}', 'English', $protocol->prompt()));
+        }
         $lock = Cache::lock('study:dev-baseline:'.$this->option('run-id'), 86400);
         if (! $lock->get()) {
             $this->error('This run is already locked by another process.');
@@ -93,12 +107,13 @@ class RunDevelopmentBaseline extends Command
             $existing = ScreeningSession::where('request_settings->evaluation->run_id', $this->option('run-id'))->get();
             foreach ($existing as $session) {
                 if (($session->request_settings['evaluation'] ?? []) !== $evaluation
-                    || ($session->request_settings['evaluation_method'] ?? null) !== 'method_a_only') {
+                    || ($session->request_settings['evaluation_method'] ?? null) !== ($pairedPilot ? 'paired' : 'method_a_only')) {
                     $this->error('Run ID already belongs to different inputs/settings. Use a new run ID.');
 
                     return self::FAILURE;
                 }
-                if ($session->processing_status === 'processing') {
+                if ($session->processing_status === 'processing'
+                    || ($pairedPilot && $session->processing_status === 'completed' && $session->method_b_status === 'not_evaluated')) {
                     $this->error('An interrupted record requires inspection: '.$session->id.'. No automatic repeat.');
 
                     return self::FAILURE;
@@ -107,6 +122,7 @@ class RunDevelopmentBaseline extends Command
             }
             $done = $existing->pluck('variant_id')->all();
             $new = 0;
+            $consecutiveTransportFailures = 0;
             foreach ($cases as $index => $case) {
                 if (in_array($case['variant_id'], $done, true)) {
                     continue;
@@ -114,18 +130,31 @@ class RunDevelopmentBaseline extends Command
                 if ($this->option('limit') !== null && $new >= (int) $this->option('limit')) {
                     break;
                 }
-                $session = $service->screen($case, null, evaluateRules: false, evaluationMetadata: $evaluation);
+                if ($pairedPilot && StudyProtocol::hash($protocol->snapshot()) !== $snapshotHash) {
+                    $this->error('Study configuration changed during the pilot. Stopped before the next request.');
+
+                    return self::FAILURE;
+                }
+                $session = $service->screen($case, null, evaluateRules: $pairedPilot, evaluationMetadata: $evaluation, studyCriteria: $pairedPilot);
                 $this->saveHistory($session);
                 $new++;
                 $this->line(($index + 1).'/'.$cases->count().' '.$case['variant_id'].' '.$case['language'].' '.$session->id
-                    .' '.($session->method_a_status ?? $session->processing_status).' '.($session->method_a_priority ?? $session->failure_code ?? 'null'));
+                    .' '.($session->method_a_status ?? $session->processing_status).' '.($session->method_a_priority ?? $session->failure_code ?? 'null')
+                    .($pairedPilot ? ' B:'.($session->method_b_priority ?? $session->method_b_status) : ''));
+                $consecutiveTransportFailures = in_array($session->failure_code, ['connection_timeout', 'provider_unavailable'], true)
+                    ? $consecutiveTransportFailures + 1 : 0;
+                if ($consecutiveTransportFailures >= 3) {
+                    $this->error('Stopped after three consecutive transport/provider failures. Saved attempts remain unchanged; restore connectivity before resuming the unattempted records.');
+
+                    return self::FAILURE;
+                }
                 if (in_array($session->failure_code, ['credentials_rejected', 'request_rejected', 'configuration_missing', 'rate_limited'], true)) {
                     $this->error('Stopped on a provider/configuration error; the failed record is retained.');
 
                     return self::FAILURE;
                 }
             }
-            $this->info('Saved '.$new.' new records. Existing records were preserved; Method B was not called.');
+            $this->info('Saved '.$new.' new records. Existing records were preserved; '.($pairedPilot ? 'both methods were evaluated on DEV only.' : 'Method B was not called.'));
 
             return self::SUCCESS;
         } finally {
@@ -149,7 +178,8 @@ class RunDevelopmentBaseline extends Command
             $visit->update(['stub_number' => 'FL-'.str_pad((string) $visit->id, 6, '0', STR_PAD_LEFT)]);
             $visit->messages()->create(['role' => 'assistant', 'source' => 'system',
                 'content' => 'Original workbook DEV record · '.$session->dataset_case_id.' / '.$session->variant_id
-                    .' · '.$session->request_settings['evaluation']['run_id'].'. LLM only; Method B was not evaluated. '
+                    .' · '.$session->request_settings['evaluation']['run_id'].'. '
+                    .(($session->request_settings['evaluation_method'] ?? null) === 'paired' ? 'Paired development pilot; both methods saved separately. ' : 'LLM only; Method B was not evaluated. ')
                     .'This transcript records a structured workbook submission, not an interactive patient interview.']);
             $visit->messages()->create(['role' => 'patient', 'source' => 'patient',
                 'content' => json_encode($session->patient_input, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
@@ -158,6 +188,10 @@ class RunDevelopmentBaseline extends Command
                 ? 'Evaluation did not complete: '.$session->failure_code.'. No prediction was invented.'
                 : ($session->method_a_priority === null ? 'Needs Review' : 'Predicted ESI '.$session->method_a_priority)
                     .'. '.($session->parsed_output['explanation'] ?? '');
+            if (($session->request_settings['evaluation_method'] ?? null) === 'paired') {
+                $text .= ' Method B: '.($session->method_b_result['display_label'] ?? $session->method_b_status)
+                    .'. '.($session->method_b_result['explanation'] ?? 'No accepted facts were available.');
+            }
             $visit->messages()->create(['role' => 'assistant',
                 'source' => $session->processing_status === 'technical_failure' ? 'system' : 'model', 'content' => $text]);
             $session->update(['patient_visit_id' => $visit->id]);

@@ -12,6 +12,17 @@ final class NormalizedPatientFacts
     /** @return array<string, string> */
     public static function definitions(): array
     {
+        return self::reviewedDefinitions() + (config('esi.mode') === 'research_prototype' ? ResearchPatientConcepts::definitions() : []);
+    }
+
+    public static function version(): string
+    {
+        return config('esi.mode') === 'research_prototype' ? ResearchPatientConcepts::VERSION : self::VERSION;
+    }
+
+    /** The original vocabulary is immutable so historical approvals retain their exact scope. */
+    public static function reviewedDefinitions(): array
+    {
         return [
             'breathing' => 'Current breathing explicitly reported by the patient or proxy.',
             'breathing_without_help' => 'Explicitly breathing without assistance now; not inferred from typing.',
@@ -150,7 +161,9 @@ final class NormalizedPatientFacts
 
     public function instructions(): string
     {
-        return file_get_contents(resource_path('prompts/normalization-v1.txt'))."\n"
+        $version = config('esi.mode') === 'research_prototype' ? 'normalization-v4-research' : 'normalization-v3';
+
+        return file_get_contents(resource_path('prompts/'.$version.'.txt'))."\n"
             .json_encode(self::definitions(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 }

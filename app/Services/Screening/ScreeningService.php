@@ -13,22 +13,24 @@ use Throwable;
 
 class ScreeningService
 {
-    public const RETRY_FEEDBACK_VERSION = 'validation-feedback-v1';
+    public const RETRY_FEEDBACK_VERSION = 'validation-feedback-v3-unique-concepts';
 
     public function __construct(private OpenAIClient $client, private ScreeningOutput $output, private RuleLayer $rules) {}
 
     public function screen(array $data, ?int $userId, ?int $patientVisitId = null, bool $evaluateRules = true, array $evaluationMetadata = [], bool $studyCriteria = false): ScreeningSession
     {
+        $protocol = app(StudyProtocol::class);
+        $research = $protocol->isResearch();
         if ($studyCriteria) {
-            app(StudyProtocol::class)->assertReady();
+            $protocol->assertReady();
         }
         $patient = PatientFields::only($data['patient']);
-        $promptVersion = $studyCriteria ? StudyProtocol::PROMPT
+        $promptVersion = $studyCriteria || $research ? $protocol->promptVersion()
             : config($patientVisitId === null ? 'triage.prompt_version' : 'triage.patient_prompt_version');
         $preferredLanguage = $evaluationMetadata['response_language'] ?? $data['language'];
         $responseLanguage = $patientVisitId === null ? null
             : (array_key_exists($preferredLanguage, PatientChatContent::LOCALES) ? $preferredLanguage : 'English');
-        $prompt = $studyCriteria ? app(StudyProtocol::class)->prompt()
+        $prompt = $studyCriteria || $research ? $protocol->prompt()
             : file_get_contents(resource_path('prompts/'.$promptVersion.'.txt'));
         $prompt = str_replace('{{normalization_instructions}}', (new NormalizedPatientFacts)->instructions(), $prompt);
         $prompt = str_replace('{{response_language}}', $responseLanguage ?? 'English', $prompt);
@@ -57,10 +59,10 @@ class ScreeningService
                 'evaluation' => $evaluationMetadata,
                 'schema_version' => config('triage.schema_version'),
                 'validation_version' => ScreeningOutput::VALIDATION_VERSION,
-                'normalization_version' => NormalizedPatientFacts::VERSION,
+                'normalization_version' => NormalizedPatientFacts::version(),
                 'retry_feedback_version' => self::RETRY_FEEDBACK_VERSION,
-                'classification_mode' => $studyCriteria ? 'reviewed_study_criteria' : config('triage.classification_mode'),
-                'criteria_status' => $studyCriteria ? 'reviewed_definitions' : 'pending_clinical_review',
+                'classification_mode' => $research ? 'research_provisional_prediction' : ($studyCriteria ? 'reviewed_study_criteria' : config('triage.classification_mode')),
+                'criteria_status' => $research ? 'unvalidated_research_adaptation' : ($studyCriteria ? 'reviewed_definitions' : 'pending_clinical_review'),
                 'response_language' => $responseLanguage,
                 'patient_voice_version' => $responseLanguage === null ? null : config('triage.patient_voice_version'),
                 'timeout_seconds' => config('triage.timeout_seconds'),
@@ -166,9 +168,10 @@ class ScreeningService
         $field = in_array($error->field, PatientFields::NAMES, true) ? ' Field: '.$error->field.'.' : '';
         $instruction = match ($error->failureCode) {
             'unknown_reported_as_known' => 'An unreported input was treated as a known fact. Use state unknown with null value and evidence for missing inputs and reporting placeholders.',
+            'none_reported_as_unknown' => 'A complete field explicitly reports none. Use state absent and copy its original evidence exactly. Apply this only to a whole-field absence, not a placeholder inside a longer or conflicting statement. Not reported remains unknown.',
             'ungrounded_fact' => 'Evidence did not exactly match its source field. Copy the original characters verbatim; do not translate, spell-correct, or normalize dialect words. Value and evidence must be identical.',
             'ungrounded_normalized_fact' => 'A normalized concept lacks a verbatim evidence anchor in extracted_facts. Keep the original source quote and field. Normalize only the concept identifier, never its evidence. Do not use tests or devices as symptom evidence.',
-            'invalid_normalized_facts' => 'Use the allowed normalized concept identifiers and states, once per concept. Include evidence for known facts; use unknown for ambiguity. Do not add ESI labels, diagnoses, high-risk judgments or resource counts.',
+            'invalid_normalized_facts' => 'Use each allowed concept identifier at most once. Group all supporting quotations into that single entry. In particular, combine multiple unsupported symptoms into ONE unmapped_symptom entry with multiple evidence anchors, not repeated entries. Use one contradictory entry for incompatible evidence about a concept. Include evidence for known facts; use unknown for ambiguity. Do not discard symptoms or add ESI labels, diagnoses, high-risk judgments or resource counts.',
             default => 'The response did not satisfy the output schema. Return one complete JSON object with the required fields and valid types.',
         };
 
@@ -184,6 +187,7 @@ class ScreeningService
     /** @param list<array{field: string, state: string, value: ?string, evidence: ?string}> $facts */
     private function saveRuleResult(ScreeningSession $session, array $facts, array $normalizedFacts): void
     {
+        $ruleStarted = hrtime(true);
         /** The patient workflow has no approved clinical-assessment or measured-vitals input. */
         $session->update(['method_b_input' => ['extracted_facts' => $facts, 'normalized_facts' => $normalizedFacts, 'clinical_assessment' => []],
             'method_b_rule_version' => $this->rules->version()]);
@@ -198,6 +202,13 @@ class ScreeningService
                     'rule_version' => $session->method_b_rule_version, 'matched_rule_ids' => [], 'trace' => [],
                     'flags' => [], 'stopped_at' => null,
                     'explanation' => 'The rule evaluation could not be completed. Method A remains saved unchanged.']]);
+        } finally {
+            $settings = $session->request_settings;
+            $settings['runtime_measurements'] = [
+                'rule_stage_wall_ms' => (hrtime(true) - $ruleStarted) / 1_000_000,
+                'rule_stage_scope' => 'Rule evaluation and database persistence after the shared LLM stage; excludes this timing-record write.',
+            ];
+            $session->update(['request_settings' => $settings]);
         }
     }
 

@@ -70,7 +70,7 @@ class IntakeInterpreter
         $factsSchema = ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => false,
             'required' => ['field', ...array_keys($factProperties)],
             'properties' => ['field' => ['type' => 'string', 'enum' => PatientFields::NAMES], ...$factProperties]]];
-        if (config('triage.intake_version') === 'intake-v5-field-map') {
+        if (in_array(config('triage.intake_version'), ['intake-v5-field-map', 'intake-v6-reporting-states'], true)) {
             $factsSchema = ['type' => 'object', 'additionalProperties' => false, 'required' => PatientFields::NAMES,
                 'properties' => array_fill_keys(PatientFields::NAMES, ['anyOf' => [
                     ['type' => 'null'],
@@ -122,7 +122,7 @@ class IntakeInterpreter
         } catch (JsonException) {
             throw new InvalidIntakeResponse('invalid_json');
         }
-        if (config('triage.intake_version') === 'intake-v5-field-map') {
+        if (in_array(config('triage.intake_version'), ['intake-v5-field-map', 'intake-v6-reporting-states'], true)) {
             $map = $result['facts'] ?? null;
             if (! is_array($map) || count($map) !== count(PatientFields::NAMES)
                 || array_diff(PatientFields::NAMES, array_keys($map)) !== []) {

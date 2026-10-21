@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\PatientVisit;
 use App\Models\ScreeningSession;
 use App\Services\Screening\PatientFields;
+use App\Services\Screening\ScreeningService;
 use App\Services\Screening\StudyManifest;
 use App\Services\Screening\StudyProtocol;
 use App\Services\TriageRules\ProvisionalEsiRuleCatalog;
@@ -90,6 +91,24 @@ class StudyWorkflowTest extends TestCase
             '--secondary-run' => 1, '--dataset-review-record' => 'FIXTURE-RELEASE', '--pilot-record' => 'FIXTURE-PILOT'])->assertSuccessful();
     }
 
+    public function test_frozen_run_pauses_on_sustained_outage_and_keeps_failed_records_on_resume(): void
+    {
+        config(['triage.max_attempts' => 1]);
+        $this->freeze();
+        Http::fake(['api.openai.com/*' => Http::sequence()->push([], 503)->push([], 503)->push([], 503)
+            ->push(MockScreening::envelope($this->screeningOutput()))]);
+        $options = ['study' => 'fixture-study', '--run' => 1, '--limit' => 4];
+        $this->artisan('study:run', $options)->assertFailed();
+        $this->assertDatabaseCount('screening_sessions', 3);
+        Http::assertSentCount(3);
+
+        $options['--limit'] = 1;
+        $this->artisan('study:run', $options)->assertSuccessful();
+        $this->assertDatabaseCount('screening_sessions', 4);
+        $this->assertSame(3, ScreeningSession::where('failure_code', 'provider_unavailable')->count());
+        Http::assertSentCount(4);
+    }
+
     private function screeningOutput(?int $priority = 2): array
     {
         $output = MockScreening::output($priority);
@@ -125,6 +144,46 @@ class StudyWorkflowTest extends TestCase
         $report = app(StudyProtocol::class)->readiness();
         $this->assertFalse($report['ready']);
         $this->assertSame([3], $report['missing_levels']);
+    }
+
+    public function test_active_intake_screening_and_study_prompts_share_the_same_reporting_state_policy(): void
+    {
+        $policies = [];
+        foreach ([config('triage.intake_version'), config('triage.prompt_version'), config('triage.patient_prompt_version'), StudyProtocol::PROMPT] as $version) {
+            $prompt = file_get_contents(resource_path('prompts/'.$version.'.txt'));
+            $this->assertSame(1, preg_match('/REPORTING STATES: .*?not_applicable remains a distinct state\./s', $prompt, $matches));
+            $policies[] = $matches[0];
+            $this->assertStringContainsString('"Wala gitaho" means unknown', $matches[0]);
+            $this->assertStringContainsString('"Walang naiuulat" means absent', $matches[0]);
+            $this->assertStringContainsString('A placeholder inside a longer statement must not erase', $matches[0]);
+        }
+        $this->assertCount(1, array_unique($policies));
+        Http::assertNothingSent();
+    }
+
+    public function test_study_request_preserves_absence_unknown_and_mixed_positive_facts_without_retry(): void
+    {
+        $this->configureFixtureRules();
+        $input = MockScreening::input();
+        $input['patient']['allergies'] = 'Known allergies: None reported.';
+        $input['patient']['medical_devices'] = 'Mga device o catheter: Wala gitaho.';
+        $input['patient']['known_conditions'] = 'Known conditions: None reported. Actually, I have asthma.';
+        $output = MockScreening::output(4);
+        $output['extracted_facts'][1] = ['field' => 'allergies', 'state' => 'absent', 'value' => $input['patient']['allergies'], 'evidence' => $input['patient']['allergies']];
+        $output['extracted_facts'][] = ['field' => 'medical_devices', 'state' => 'unknown', 'value' => null, 'evidence' => null];
+        $output['extracted_facts'][] = ['field' => 'known_conditions', 'state' => 'reported', 'value' => $input['patient']['known_conditions'], 'evidence' => $input['patient']['known_conditions']];
+        Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope($output))]);
+
+        $session = app(ScreeningService::class)->screen($input, null, studyCriteria: true);
+
+        $this->assertSame('completed', $session->processing_status);
+        $this->assertSame(StudyProtocol::PROMPT, $session->prompt_version);
+        $this->assertSame($output, $session->parsed_output);
+        $this->assertSame($output['extracted_facts'], $session->method_b_input['extracted_facts']);
+        $this->assertCount(1, $session->attempts);
+        $this->assertStringContainsString('REPORTING STATES:', $session->prompt_text);
+        $this->assertStringNotContainsString('"Not reported", "None reported", "Not stated"', $session->prompt_text);
+        Http::assertSentCount(1);
     }
 
     public function test_frozen_pair_uses_one_call_keeps_disagreement_and_saves_history_without_label_leakage(): void

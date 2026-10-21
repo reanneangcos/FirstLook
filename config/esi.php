@@ -44,7 +44,7 @@ $reviewedDefinitionHashes = [
 ];
 
 return [
-    'mode' => 'provisional_patient_report',
+    'mode' => env('ESI_RULE_MODE', 'research_prototype'),
 
     /**
      * handbook_pre_screening uses the 2012 edition ESI v4 handbook and a

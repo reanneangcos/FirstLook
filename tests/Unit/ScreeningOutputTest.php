@@ -51,7 +51,8 @@ class ScreeningOutputTest extends TestCase
     public static function unreportedValues(): array
     {
         return [[null], [''], ['  '], [' Not reported. '], ['NOT STATED'],
-            ['Unknown'], ['Hindi naiulat'], ['Wala gitaho']];
+            ['Unknown'], ['Hindi naiulat'], ['Wala gitaho'], ['Not known'],
+            ['Known allergies: Not reported.'], ['Mga allergy: Wala gitaho.'], ['Mga allergy: Hindi naiulat.']];
     }
 
     #[DataProvider('unreportedValues')]
@@ -111,6 +112,33 @@ class ScreeningOutputTest extends TestCase
             $output['extracted_facts'][1] = ['field' => 'allergies', 'state' => $state, 'value' => $value, 'evidence' => $value];
             $this->assertSame($output, (new ScreeningOutput)->parse(json_encode(MockScreening::envelope($output)), $patient));
         }
+    }
+
+    public static function mixedReportingStatements(): array
+    {
+        return [
+            ['Known conditions: None reported. Actually, I have asthma.'],
+            ['Known conditions: None reported; actually, I have asthma.'],
+            ["Known conditions: None reported.\nActually, I have asthma."],
+            ['I have asthma. Other conditions: None reported.'],
+            ['Allergies: None reported. Main complaint: Chest pain.'],
+            ['Mga sakit: Walay gitaho. Pero naa koy asthma.'],
+            ['Mga sakit: Walang naiulat. Pero may asthma ako.'],
+            ['Known conditions: Not reported. Actually, I have asthma.'],
+        ];
+    }
+
+    #[DataProvider('mixedReportingStatements')]
+    public function test_placeholder_inside_a_longer_statement_never_forces_the_whole_field_absent_or_unknown(string $value): void
+    {
+        $this->assertFalse(PatientFields::isNoneReported($value));
+        $this->assertFalse(PatientFields::isUnreported($value));
+        $patient = PatientFields::only(MockScreening::input()['patient']);
+        $patient['known_conditions'] = $value;
+        $output = MockScreening::output(4);
+        $output['extracted_facts'][] = ['field' => 'known_conditions', 'state' => 'reported', 'value' => $value, 'evidence' => $value];
+
+        $this->assertSame($output, (new ScreeningOutput)->parse(json_encode(MockScreening::envelope($output)), $patient));
     }
 
     public function test_refusal_is_not_a_needs_review_prediction(): void

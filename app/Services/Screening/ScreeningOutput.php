@@ -6,7 +6,7 @@ use JsonException;
 
 final class ScreeningOutput
 {
-    public const VALIDATION_VERSION = 'evidence-v3-normalized';
+    public const VALIDATION_VERSION = 'evidence-v4-reporting-states';
 
     public function schema(): array
     {

@@ -55,9 +55,9 @@ final class PatientFields
             return false;
         }
 
-        return in_array(mb_strtolower(trim($value, " \t\n\r\0\x0B.")), [
-            '', 'not reported', 'not stated', 'unknown', 'hindi naiulat', 'wala gitaho',
-        ], true);
+        return trim($value) === '' || self::matchesReportingPlaceholder($value, [
+            'not reported', 'not stated', 'not known', 'unknown', 'hindi naiulat', 'wala gitaho',
+        ]);
     }
 
     public static function isNoneReported(mixed $value): bool
@@ -66,13 +66,17 @@ final class PatientFields
             return false;
         }
 
-        $normalized = mb_strtolower(trim($value, " \t\n\r\0\x0B."));
+        return self::matchesReportingPlaceholder($value, [
+            'none reported', 'walay gitaho', 'walay gi report', 'walay gi-report',
+            'walang naiulat', 'walang iniulat', 'walang naiuulat',
+        ]);
+    }
 
-        return $normalized === 'none reported'
-            || in_array($normalized, [
-                'walay gitaho', 'walay gi report', 'walay gi-report',
-                'walang naiulat', 'walang iniulat', 'walang naiuulat',
-            ], true)
-            || preg_match('/:\s*(?:none reported|walay\s+(?:gi\s*report|gi-report|gitaho)|walang\s+(?:naiulat|iniulat|naiuulat))(?:[.!?]|$)/u', $normalized) === 1;
+    /** Match a whole value, optionally preceded by one label; never a clause inside a longer statement. */
+    private static function matchesReportingPlaceholder(string $value, array $phrases): bool
+    {
+        $alternatives = implode('|', array_map(fn (string $phrase): string => preg_quote($phrase, '/'), $phrases));
+
+        return preg_match('/\A(?:[^:\r\n.!?;]+:\h*)?(?:'.$alternatives.')\.*\z/u', mb_strtolower(trim($value))) === 1;
     }
 }
