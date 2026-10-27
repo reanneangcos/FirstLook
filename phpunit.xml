@@ -23,6 +23,11 @@
         <!-- Existing reviewed-mode regression tests retain their original configuration. Research tests select their mode explicitly. -->
         <server name="ESI_RULE_MODE" value="provisional_patient_report" force="true"/>
         <env name="ESI_RULE_MODE" value="provisional_patient_report" force="true"/>
+        <!-- Tests never read the local API key; requests are faked. -->
+        <server name="OPENAI_API_KEY" value="test-only-not-a-key" force="true"/>
+        <env name="OPENAI_API_KEY" value="test-only-not-a-key" force="true"/>
+        <server name="OPENAI_MODEL" value="gpt-6-luna" force="true"/>
+        <env name="OPENAI_MODEL" value="gpt-6-luna" force="true"/>
         <server name="CACHE_STORE" value="array"/>
         <server name="SESSION_DRIVER" value="array"/>
         <server name="QUEUE_CONNECTION" value="sync"/>
