@@ -24,6 +24,8 @@ class StudyWorkflowTest extends TestCase
 
     private string $referencePath;
 
+    private string $disputedPath;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -32,12 +34,14 @@ class StudyWorkflowTest extends TestCase
         config(['triage.api_key' => 'MOCK_SECRET_NEVER_EXPORT', 'triage.model' => 'gpt-6-luna', 'triage.retry_delay_ms' => 0]);
         $this->inputPath = tempnam(sys_get_temp_dir(), 'firstlook-study-input-');
         $this->referencePath = tempnam(sys_get_temp_dir(), 'firstlook-study-reference-');
+        $this->disputedPath = tempnam(sys_get_temp_dir(), 'firstlook-disputed-');
     }
 
     protected function tearDown(): void
     {
         unlink($this->inputPath);
         unlink($this->referencePath);
+        unlink($this->disputedPath);
         parent::tearDown();
     }
 
@@ -81,14 +85,26 @@ class StudyWorkflowTest extends TestCase
         return ['split' => 'TEST', 'source_sha256' => str_repeat('a', 64), 'cases' => $cases];
     }
 
-    private function freeze(): void
+    private function freeze(?array $disputed = null): void
     {
         $this->configureFixtureRules();
         $manifest = $this->manifest();
         file_put_contents($this->inputPath, json_encode($manifest, JSON_THROW_ON_ERROR));
         file_put_contents($this->referencePath, json_encode(array_map(fn (array $case): array => ['variant_id' => $case['variant_id'], 'expert_priority' => 5], $manifest['cases']), JSON_THROW_ON_ERROR));
+        $options = [];
+        if ($disputed !== null) {
+            file_put_contents($this->disputedPath, json_encode($disputed, JSON_THROW_ON_ERROR));
+            $options['--disputed-cases'] = $this->disputedPath;
+        }
         $this->artisan('study:freeze', ['input' => $this->inputPath, '--study-id' => 'fixture-study', '--reference' => $this->referencePath,
-            '--secondary-run' => 1, '--dataset-review-record' => 'FIXTURE-RELEASE', '--pilot-record' => 'FIXTURE-PILOT'])->assertSuccessful();
+            '--secondary-run' => 1, '--dataset-review-record' => 'FIXTURE-RELEASE', '--pilot-record' => 'FIXTURE-PILOT'] + $options)->assertSuccessful();
+    }
+
+    private function disputedCase(): array
+    {
+        return ['dataset_case_id' => 'FIXTURE-C1', 'reference_priority' => 5, 'reason' => 'FICTIONAL_DISPUTE_NEVER_SEND',
+            'handbook_criterion' => 'TEST ONLY', 'reviewer' => 'FICTIONAL_DISPUTE_REVIEWER',
+            'reviewed_at' => '2026-10-20', 'review_record' => 'FIXTURE-REVIEW-1'];
     }
 
     public function test_frozen_run_pauses_on_sustained_outage_and_keeps_failed_records_on_resume(): void
@@ -273,7 +289,7 @@ class StudyWorkflowTest extends TestCase
 
     public function test_complete_fictional_three_run_export_joins_labels_offline_and_rejects_changed_predictions(): void
     {
-        $this->freeze();
+        $this->freeze([$this->disputedCase()]);
         Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope($this->screeningOutput()))]);
         $this->artisan('study:run', ['study' => 'fixture-study', '--run' => 1, '--limit' => 1])->assertSuccessful();
         $template = ScreeningSession::firstOrFail();
@@ -301,10 +317,60 @@ class StudyWorkflowTest extends TestCase
         $this->assertEquals(1, $report['three_run_mean']['b']['common_pairs']['accuracy']);
         $this->assertSame(600, $report['runs'][1]['common_pair_count']);
         $this->assertSame(120, $report['runs'][1]['language_consistency']['b']['consistent_cases']);
+        $this->assertSame(120, $report['runs'][1]['language_consistency']['b']['correct_consistent_cases']);
+        $this->assertSame(0, $report['runs'][1]['language_consistency']['a']['correct_consistent_cases']);
+        $this->assertSame(1800, $report['runtime']['shared_stage_ms']['measured']);
+        $this->assertSame(1800, $report['runtime']['rule_stage_wall_ms']['measured']);
+        $this->assertSame(1, $report['sensitivity']['excluded_canonical_cases']);
+        $this->assertSame(15, $report['sensitivity']['excluded_observations']);
+        $this->assertSame(1785, $report['sensitivity']['results']['observations']);
+        $this->assertSame(595, $report['sensitivity']['results']['runs'][1]['common_pair_count']);
+        $this->assertSame(119, $report['sensitivity']['paired_bootstrap']['canonical_groups']);
+        $this->assertSame(1800, $report['qualitative_review']['selected_observations']);
         $this->assertSame(1801, substr_count(Storage::disk('local')->get('studies/fixture-study/results-v1.csv'), "\n"));
+        $reviewCsv = Storage::disk('local')->get('studies/fixture-study/results-v1-error-review.csv');
+        $this->assertStringContainsString('human_error_category', $reviewCsv);
+        $this->assertStringContainsString('a:false_high_acuity', $reviewCsv);
+        $this->assertStringContainsString('TEST_SUPPORT_5', $reviewCsv);
+        $this->assertSame(1801, substr_count($reviewCsv, "\n"));
+        $this->assertSame(2, $template->fresh()->method_a_priority);
+        $this->assertSame(5, $template->fresh()->method_b_priority);
+        $this->artisan('study:score', ['study' => 'fixture-study', 'reference' => $this->referencePath])->assertFailed();
         $template->update(['method_a_priority' => 1]);
         $this->artisan('study:score', ['study' => 'fixture-study', 'reference' => $this->referencePath, '--output' => 'invalid'])->assertFailed();
         Storage::disk('local')->assertMissing('studies/fixture-study/invalid.json');
         Http::assertSentCount(1);
+        Http::assertSent(fn ($request): bool => ! str_contains(json_encode($request->data()), 'FICTIONAL_DISPUTE'));
+    }
+
+    public function test_disputed_register_rejects_unknown_cases_changed_labels_and_missing_review_details(): void
+    {
+        $manifest = $this->manifest();
+        $references = array_fill_keys(array_column($manifest['cases'], 'variant_id'), 5);
+        $loader = app(StudyManifest::class);
+        foreach ([['dataset_case_id' => 'NOT-IN-TEST'], ['reference_priority' => 2], ['reviewer' => ''], ['reviewed_at' => 'invalid'], ['extra' => 'unexpected']] as $change) {
+            file_put_contents($this->disputedPath, json_encode([array_replace($this->disputedCase(), $change)], JSON_THROW_ON_ERROR));
+            try {
+                $loader->disputedCases($this->disputedPath, $manifest, $references);
+                $this->fail('Invalid disputed-case register was accepted.');
+            } catch (\RuntimeException $error) {
+                $this->assertNotEmpty($error->getMessage());
+            }
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_disputed_register_is_preserved_in_freeze_even_if_local_file_changes(): void
+    {
+        $record = $this->disputedCase();
+        $this->freeze([$record]);
+        $hash = hash_file('sha256', $this->disputedPath);
+        file_put_contents($this->disputedPath, '[]');
+
+        $payload = app(StudyProtocol::class)->frozen('fixture-study')['payload'];
+        $this->assertSame([$record], $payload['sensitivity']['disputed_cases']);
+        $this->assertSame($hash, $payload['sensitivity']['register_sha256']);
+        $this->assertSame(600, count($payload['manifest']['cases']));
+        Http::assertNothingSent();
     }
 }

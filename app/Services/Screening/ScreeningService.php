@@ -62,7 +62,7 @@ class ScreeningService
                 'normalization_version' => NormalizedPatientFacts::version(),
                 'retry_feedback_version' => self::RETRY_FEEDBACK_VERSION,
                 'classification_mode' => $research ? 'research_provisional_prediction' : ($studyCriteria ? 'reviewed_study_criteria' : config('triage.classification_mode')),
-                'criteria_status' => $research ? 'unvalidated_research_adaptation' : ($studyCriteria ? 'reviewed_definitions' : 'pending_clinical_review'),
+                'criteria_status' => $research || $studyCriteria ? $protocol->criteriaStatus() : 'pending_clinical_review',
                 'response_language' => $responseLanguage,
                 'patient_voice_version' => $responseLanguage === null ? null : config('triage.patient_voice_version'),
                 'timeout_seconds' => config('triage.timeout_seconds'),

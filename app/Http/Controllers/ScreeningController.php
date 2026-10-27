@@ -70,6 +70,6 @@ class ScreeningController extends Controller
     private function summaryColumns(): array
     {
         return ['id', 'dataset_case_id', 'variant_id', 'language', 'patient_input', 'processing_status',
-            'method_a_status', 'method_a_priority', 'method_b_status', 'is_fixture', 'created_at'];
+            'method_a_status', 'method_a_priority', 'method_b_status', 'method_b_priority', 'is_fixture', 'created_at'];
     }
 }

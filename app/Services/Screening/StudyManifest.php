@@ -87,4 +87,35 @@ final class StudyManifest
             throw new RuntimeException('Use an identifier of 1–80 letters, numbers, dots, underscores or hyphens.');
         }
     }
+
+    /** A local review register is frozen before predictions; it never changes the primary reference key. */
+    public function disputedCases(string $path, array $manifest, array $references): array
+    {
+        if (! is_file($path) || ! is_readable($path)) {
+            throw new RuntimeException('Disputed-case register is not readable.');
+        }
+        $records = json_decode(file_get_contents($path), true, 64, JSON_THROW_ON_ERROR);
+        $validator = Validator::make(['records' => $records], [
+            'records' => ['present', 'array', 'list', 'max:119'],
+            'records.*' => ['required', 'array:dataset_case_id,reference_priority,reason,handbook_criterion,reviewer,reviewed_at,review_record'],
+            'records.*.dataset_case_id' => ['required', 'string', 'distinct', Rule::in(array_column($manifest['cases'], 'dataset_case_id'))],
+            'records.*.reference_priority' => ['required', 'integer', 'between:1,5'],
+            'records.*.reason' => ['required', 'string', 'max:3000'],
+            'records.*.handbook_criterion' => ['required', 'string', 'max:3000'],
+            'records.*.reviewer' => ['required', 'string', 'max:300'],
+            'records.*.reviewed_at' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'records.*.review_record' => ['required', 'string', 'max:500'],
+        ]);
+        if ($validator->fails()) {
+            throw new RuntimeException('Invalid disputed-case register: '.implode(', ', $validator->errors()->keys()));
+        }
+        $cases = collect($manifest['cases'])->groupBy('dataset_case_id');
+        foreach ($records as $record) {
+            if ((int) $record['reference_priority'] !== $references[$cases[$record['dataset_case_id']][0]['variant_id']]) {
+                throw new RuntimeException('Disputed-case reference does not match the unchanged primary key.');
+            }
+        }
+
+        return $records;
+    }
 }

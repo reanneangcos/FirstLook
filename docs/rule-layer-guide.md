@@ -1,3 +1,11 @@
+# Current prototype mode — 21 October 2026
+
+The active default is now `research_prototype`, with 70 deterministic patient-report profiles (version 2.0.0; 38 added from ESI v4 and v5 handbook categories). Prototype execution does not wait for clinical approval. The existing 18 reviewed definitions and their approval hashes remain unchanged in `provisional_patient_report` mode.
+
+See [the current implementation, sources, and complete flowchart](research-prototype-rules.md). The sections below document the earlier reviewed-mode implementation and its historical constraints. Do not apply those approval gates or mandatory negative bundles to the new prototype mode.
+
+---
+
 # Provisional rule layer and next steps
 
 ## Current implementation — October 20, 2026

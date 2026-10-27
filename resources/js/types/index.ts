@@ -20,7 +20,8 @@ export type RuleResult = {
     explanation: string;
     flags: string[];
     stopped_at: string | null;
-    output_kind?: 'provisional_esi_prediction';
+    output_kind?: 'provisional_esi_prediction' | 'research_provisional_esi_prediction';
+    display_label?: string;
     decision_d?: { status: 'not_assessed'; reason: string };
     design_sources?: Record<string, string>;
     trace: {
@@ -28,22 +29,34 @@ export type RuleResult = {
         decision_point: string;
         required_fields: string[];
         condition: string;
-        source: { algorithm: string; handbook: string; section: string };
+        source: { algorithm?: string; handbook: string; section: string };
         reviewer_approval: {
             status: string;
             reviewer: string | null;
             reviewed_at: string | null;
-            record_id: string | null;
-            rule_version: string | null;
+            record_id?: string | null;
+            rule_version?: string | null;
         };
         approved: boolean;
         rule_version: string;
         outcome: string;
-        action: string;
-        matched_evidence: string[];
-        blocking_reasons: string[];
+        action?: string;
+        matched_evidence: unknown[];
+        blocking_reasons?: string[];
         observations: Record<string, unknown>[];
     }[];
+};
+export type Attempt = {
+    id: number;
+    number: number;
+    status: string;
+    http_status: number | null;
+    original_response: string | null;
+    parsed_output: unknown;
+    failure_code: string | null;
+    latency_ms: number;
+    started_at: string;
+    completed_at: string;
 };
 export type Session = {
     patient_visit?: { id: number; stub_number: string } | null;
@@ -79,18 +92,7 @@ export type Session = {
     latency_ms: number | null;
     failure_code: string | null;
     failure_message: string | null;
-    attempts: {
-        id: number;
-        number: number;
-        status: string;
-        http_status: number | null;
-        original_response: string | null;
-        parsed_output: Output | null;
-        failure_code: string | null;
-        latency_ms: number;
-        started_at: string;
-        completed_at: string;
-    }[];
+    attempts: Attempt[];
 };
 export type SharedProps = {
     auth: { user: { name: string; email: string } | null };

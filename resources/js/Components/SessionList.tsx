@@ -37,6 +37,17 @@ export function StatusBadge({ session }: { session: Session }) {
     );
 }
 
+export function MethodBadge({ status, priority }: { status: string; priority: number | null }) {
+    const Icon =
+        status === 'classified' ? FileCheck2 : status === 'processing' ? Clock3 : CircleAlert;
+    return (
+        <span className={`status-badge ${status}`}>
+            <Icon size={13} />
+            {status === 'classified' ? `ESI ${priority}` : label(status)}
+        </span>
+    );
+}
+
 export default function SessionList({
     sessions,
     filtered = false,
@@ -70,7 +81,8 @@ export default function SessionList({
                     <tr>
                         <th>Screening session</th>
                         <th>Language</th>
-                        <th>Method A</th>
+                        <th>A · LLM + criteria</th>
+                        <th>B · Rules</th>
                         <th>Created · Manila time</th>
                         <th>
                             <span className="sr-only">Details</span>
@@ -102,7 +114,20 @@ export default function SessionList({
                                 <span className="language-pill">{session.language}</span>
                             </td>
                             <td>
-                                <StatusBadge session={session} />
+                                <MethodBadge
+                                    status={
+                                        session.processing_status === 'completed'
+                                            ? (session.method_a_status ?? 'unknown')
+                                            : session.processing_status
+                                    }
+                                    priority={session.method_a_priority}
+                                />
+                            </td>
+                            <td>
+                                <MethodBadge
+                                    status={session.method_b_status}
+                                    priority={session.method_b_priority}
+                                />
                             </td>
                             <td className="date-cell">{formatDate(session.created_at)}</td>
                             <td>

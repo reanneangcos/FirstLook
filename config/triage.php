@@ -12,7 +12,7 @@ return [
     'schema_version' => 'screening-v2-normalized',
     'reasoning_effort' => 'low',
     'max_output_tokens' => 4000,
-    'timeout_seconds' => 30,
+    'timeout_seconds' => 60,
     'connect_timeout_seconds' => 5,
     'max_attempts' => 3,
     'retry_delay_ms' => 500,

@@ -1,0 +1,29 @@
+flowchart TD
+    IN[Original patient fields] --> L[Luna: language understanding, facts and its own prediction]
+    L --> MA[Save Method A unchanged]
+    L --> F[Method B receives facts only]
+    F --> V{Valid evidence, adult age and consistent facts?}
+    V -- No --> NR[Needs Review: null ESI]
+    V -- Yes --> A{A: immediate-danger profile matches?}
+    A -- Yes --> E1[Provisional ESI 1]
+    A -- No --> AG{Reported or explicitly uncertain A danger remains?}
+    AG -- Yes --> NR
+    AG -- No --> B{B: high-risk profile matches?}
+    B -- Yes --> E2[Provisional ESI 2]
+    B -- No --> BG{Reported or explicitly uncertain B danger remains?}
+    BG -- Yes --> NR
+    BG -- No --> C{C: resource profile matches and covers reported symptoms?}
+    C -- No --> NR
+    C -- Yes --> R[Combine distinct resource types from matched profiles]
+    R -- Zero --> E5[Provisional ESI 5]
+    R -- One --> E4[Provisional ESI 4]
+    R -- Two or more --> D[D: vital signs unavailable and unassessed]
+    D --> E3[Most likely ESI 3: nurse evaluation and vital signs required]
+    E1 --> DB[Save Method B result, evidence and trace]
+    E2 --> DB
+    E3 --> DB
+    E4 --> DB
+    E5 --> DB
+    NR --> DB
+    MA --> COMP[Paired comparison against separate reference labels]
+    DB --> COMP

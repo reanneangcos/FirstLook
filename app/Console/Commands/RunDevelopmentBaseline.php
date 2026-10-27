@@ -67,7 +67,7 @@ class RunDevelopmentBaseline extends Command
         $pairedPilot = (bool) $this->option('paired-pilot');
         $protocol = app(StudyProtocol::class);
         if ($pairedPilot && ! $protocol->readiness()['ready']) {
-            $this->error('Paired pilot requires the study configuration and recorded rule approvals.');
+            $this->error('Paired pilot configuration is incomplete: '.implode(' ', $protocol->readiness()['blockers']));
 
             return self::FAILURE;
         }
@@ -85,7 +85,9 @@ class RunDevelopmentBaseline extends Command
         $evaluation = ['split' => 'DEV', 'run_id' => $this->option('run-id'),
             'source_sha256' => $manifest['source_sha256'], 'input_sha256' => hash('sha256', $raw),
             'order_seed' => (int) $this->option('seed'), 'order_algorithm' => 'sha256(seed:variant_id)',
-            'prompt_sha256' => hash_file('sha256', resource_path('prompts/'.config('triage.prompt_version').'.txt')),
+            'prompt_sha256' => $protocol->isResearch()
+                ? hash('sha256', str_replace('{{response_language}}', 'English', $protocol->prompt()))
+                : hash_file('sha256', resource_path('prompts/'.config('triage.prompt_version').'.txt')),
             'configuration_sha256' => hash('sha256', json_encode([
                 config('triage.model'), config('triage.reasoning_effort'), config('triage.max_output_tokens'),
                 config('triage.max_attempts'), config('triage.timeout_seconds'), config('triage.schema_version'),
@@ -189,7 +191,7 @@ class RunDevelopmentBaseline extends Command
                 : ($session->method_a_priority === null ? 'Needs Review' : 'Predicted ESI '.$session->method_a_priority)
                     .'. '.($session->parsed_output['explanation'] ?? '');
             if (($session->request_settings['evaluation_method'] ?? null) === 'paired') {
-                $text .= ' Method B: '.($session->method_b_result['display_label'] ?? $session->method_b_status)
+                $text = 'Method A: '.$text.' Method B: '.($session->method_b_result['display_label'] ?? $session->method_b_status)
                     .'. '.($session->method_b_result['explanation'] ?? 'No accepted facts were available.');
             }
             $visit->messages()->create(['role' => 'assistant',

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\Screening\StudyManifest;
+use App\Services\Screening\StudyMetrics;
 use App\Services\Screening\StudyProtocol;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -11,7 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
-#[Signature('study:freeze {input : Label-free TEST JSON} {--study-id= : New frozen experiment identifier} {--reference= : Separate reference-key JSON} {--seed=42 : First of three order seeds} {--secondary-run= : Prespecified run 1, 2 or 3 for the English-only McNemar test} {--dataset-review-record= : Existing dataset release/review record ID} {--pilot-record= : Existing approved development pilot record ID} {--dry-run : Validate without writing the freeze}')]
+#[Signature('study:freeze {input : Label-free TEST JSON} {--study-id= : New frozen experiment identifier} {--reference= : Separate reference-key JSON} {--disputed-cases= : Optional local JSON review register for prespecified sensitivity exclusions} {--seed=42 : First of three order seeds} {--secondary-run= : Prespecified run 1, 2 or 3 for the English-only McNemar test} {--dataset-review-record= : Existing dataset release/review record ID} {--pilot-record= : Existing approved development pilot record ID} {--dry-run : Validate without writing the freeze}')]
 #[Description('Freeze inputs, reference hash, reviewed criteria, code and settings; no LLM requests')]
 class FreezeStudy extends Command
 {
@@ -23,7 +24,9 @@ class FreezeStudy extends Command
             $protocol->assertReady();
             $manifest = $loader->read($this->argument('input'));
             $reference = (string) $this->option('reference');
-            $loader->references($reference, $manifest);
+            $references = $loader->references($reference, $manifest);
+            $disputedPath = (string) $this->option('disputed-cases');
+            $disputed = $disputedPath === '' ? [] : $loader->disputedCases($disputedPath, $manifest, $references);
             $seed = filter_var($this->option('seed'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 2147483645]]);
             $secondaryRun = filter_var($this->option('secondary-run'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 3]]);
             if ($seed === false || $secondaryRun === false || trim((string) $this->option('dataset-review-record')) === '' || trim((string) $this->option('pilot-record')) === '') {
@@ -33,8 +36,12 @@ class FreezeStudy extends Command
                 'reference_sha256' => hash_file('sha256', $reference), 'snapshot' => $protocol->snapshot(),
                 'seeds' => [$seed, $seed + 1, $seed + 2], 'order_algorithm' => 'sha256(seed:variant_id)',
                 'statistics' => ['bootstrap_resamples' => 2000, 'bootstrap_seed' => 42,
+                    'metrics_version' => StudyMetrics::VERSION,
                     'secondary_run' => $secondaryRun, 'secondary_language' => 'English',
                     'mcnemar_exact_below_discordant' => 25, 'secondary_population' => 'common_valid_pairs'],
+                'sensitivity' => ['disputed_cases' => $disputed,
+                    'register_sha256' => $disputedPath === '' ? null : hash_file('sha256', $disputedPath),
+                    'procedure' => 'Exclude all five versions and all three runs of each registered canonical case from a supplementary analysis only. Keep the primary reference key unchanged.'],
                 'dataset_review_record' => $this->option('dataset-review-record'), 'pilot_record' => $this->option('pilot-record'),
                 'frozen_at' => now()->toIso8601String()];
             if ($this->option('dry-run')) {
