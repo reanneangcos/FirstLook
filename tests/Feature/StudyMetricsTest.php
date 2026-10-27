@@ -13,7 +13,7 @@ class StudyMetricsTest extends TestCase
         $rows = [];
         foreach ([1, 2, 3] as $run) {
             foreach ([1, 2, 3, 4, 5] as $level) {
-                $rows[] = ['run' => $run, 'dataset_case_id' => 'FICTIONAL', 'variant_id' => 'V'.$level, 'language' => 'L'.$level,
+                $rows[] = ['run' => $run, 'dataset_case_id' => 'FICTIONAL'.$level, 'variant_id' => 'V'.$level, 'language' => 'L'.$level,
                     'reference' => $level, 'a_priority' => [1 => 1, 2 => 3, 3 => 2, 4 => null, 5 => null][$level],
                     'a_status' => match ($level) {
                         4 => 'needs_review', 5 => 'technical_failure', default => 'classified'
@@ -54,6 +54,9 @@ class StudyMetricsTest extends TestCase
         $report = app(StudyMetrics::class)->calculate($rows);
         $this->assertNull($report['runs'][1]['common_pairs']['a']['accuracy']);
         $this->assertNull($report['runs'][1]['common_pairs']['b']['macro_f1']);
+        $this->assertNull($report['runs'][1]['common_pairs']['b']['severe_undertriage_rate']);
+        $this->assertNull($report['runs'][1]['common_pairs']['b']['recall_by_esi'][3]);
+        $this->assertSame(0.0, $report['runs'][1]['methods']['b']['completion_adjusted_recall_by_esi'][3]);
         $this->assertNull($report['three_run_mean']['b']['common_pairs']['undertriage_rate']);
         $this->assertSame(0.0, $report['runs'][1]['methods']['b']['completion_adjusted_accuracy']);
         $this->assertSame(1.0, $report['runs'][1]['methods']['b']['needs_review_rate']);
@@ -109,6 +112,10 @@ class StudyMetricsTest extends TestCase
         $this->assertSame(1.0, $report['intervals']['accuracy']['difference_b_minus_a']);
         $this->assertSame(1.0, $report['intervals']['accuracy']['lower_95']);
         $this->assertSame(1.0, $report['intervals']['accuracy']['upper_95']);
+        $this->assertSame(1.0, $report['intervals']['correct_language_consistency']['difference_b_minus_a']);
+        $this->assertSame(0.0, $report['intervals']['language_consistency']['difference_b_minus_a']);
+        $this->assertSame(1.0, $report['intervals']['recall_by_esi_3']['difference_b_minus_a']);
+        $this->assertNull($report['intervals']['recall_by_esi_1']['difference_b_minus_a']);
         foreach ($rows as &$row) {
             $row['b_status'] = 'needs_review';
             $row['b_priority'] = null;
@@ -139,5 +146,104 @@ class StudyMetricsTest extends TestCase
         $this->assertSame('exact_two_sided_binomial', $result['method']);
         $this->assertSame(0.109375, $result['p_value']);
         $this->assertNull($statistics->mcnemar($small, 2)['p_value']);
+    }
+
+    public function test_recall_and_severe_undertriage_use_the_declared_denominators(): void
+    {
+        $rows = [];
+        foreach ([1, 2, 3] as $run) {
+            foreach ([['ONE', 1, 2], ['TWO', 1, 3], ['THREE', 1, 1], ['FOUR', 1, null], ['FIVE', 2, 4]] as [$id, $reference, $prediction]) {
+                foreach (range(1, 5) as $version) {
+                    $rows[] = ['run' => $run, 'dataset_case_id' => $id, 'variant_id' => $id.'-'.$version, 'language' => 'L'.$version,
+                        'reference' => $reference, 'a_status' => $prediction === null ? 'needs_review' : 'classified',
+                        'a_priority' => $prediction, 'b_status' => 'classified', 'b_priority' => $reference];
+                }
+            }
+        }
+
+        $report = app(StudyMetrics::class)->calculate($rows);
+        $run = $report['runs'][1];
+        $a = $run['common_pairs']['a'];
+        $this->assertSame(10, $a['severe_undertriage']);
+        $this->assertSame(5, $a['one_level_undertriage']);
+        $this->assertSame(0.5, $a['severe_undertriage_rate']);
+        $this->assertSame(0.25, $a['one_level_undertriage_rate']);
+        $this->assertSame(1 / 3, $a['recall_by_esi'][1]);
+        $this->assertSame(0.0, $a['recall_by_esi'][2]);
+        $this->assertNull($a['recall_by_esi'][3]);
+        $this->assertSame(0.25, $run['methods']['a']['completion_adjusted_recall_by_esi'][1]);
+        $this->assertSame(0.8, $run['language_consistency']['a']['rate']);
+        $this->assertSame(0.2, $run['language_consistency']['a']['correct_consistency_rate']);
+        $this->assertSame(0.5, $report['three_run_mean']['a']['common_pairs']['severe_undertriage_rate']);
+        $this->assertSame(0.25, $report['three_run_mean']['a']['completion_adjusted_recall_by_esi'][1]);
+        $this->assertNull($run['by_reference_esi'][1]['common_pairs']['b']['recall_by_esi'][2]);
+
+        $intervals = app(StudyStatistics::class)->bootstrap($rows, 20)['intervals'];
+        $this->assertSame(-0.5, $intervals['severe_undertriage_rate']['difference_b_minus_a']);
+        $this->assertSame(0.75, $intervals['completion_adjusted_recall_by_esi_1']['difference_b_minus_a']);
+    }
+
+    public function test_equal_discordant_counts_have_zero_continuity_corrected_chi_square(): void
+    {
+        $rows = [];
+        foreach (range(1, 40) as $case) {
+            $rows[] = ['run' => 1, 'dataset_case_id' => 'C'.$case, 'language' => 'English', 'reference' => 2,
+                'a_status' => 'classified', 'a_priority' => $case <= 20 ? 2 : 3,
+                'b_status' => 'classified', 'b_priority' => $case <= 20 ? 3 : 2];
+        }
+
+        $result = app(StudyStatistics::class)->mcnemar($rows, 1);
+        $this->assertEqualsWithDelta(0.0, $result['chi_square'], 1e-12);
+        $this->assertEqualsWithDelta(1.0, $result['p_value'], 1e-8);
+    }
+
+    public function test_references_cannot_disagree_between_language_versions(): void
+    {
+        $row = ['run' => 1, 'dataset_case_id' => 'C1', 'variant_id' => 'V1', 'language' => 'English', 'reference' => 2,
+            'a_status' => 'classified', 'a_priority' => 2, 'b_status' => 'classified', 'b_priority' => 2];
+
+        $this->expectException(\InvalidArgumentException::class);
+        app(StudyMetrics::class)->calculate([$row, array_replace($row, ['variant_id' => 'V2', 'language' => 'Bisaya', 'reference' => 3])]);
+    }
+
+    public function test_runtime_reports_missing_and_unevaluated_stages_separately(): void
+    {
+        $row = ['run' => 1, 'dataset_case_id' => 'C1', 'variant_id' => 'V1', 'language' => 'English', 'reference' => 2,
+            'a_status' => 'classified', 'a_priority' => 2, 'b_status' => 'classified', 'b_priority' => 2,
+            'shared_stage_ms' => 100, 'rule_stage_wall_ms' => 0.0];
+        $rows = [$row, array_replace($row, ['variant_id' => 'V2', 'language' => 'Bisaya', 'shared_stage_ms' => 300, 'rule_stage_wall_ms' => null]),
+            array_replace($row, ['variant_id' => 'V3', 'language' => 'Tagalog', 'a_status' => 'technical_failure', 'a_priority' => null,
+                'b_status' => 'upstream_failure', 'b_priority' => null, 'shared_stage_ms' => null, 'rule_stage_wall_ms' => null])];
+
+        $report = app(StudyMetrics::class)->calculate($rows);
+        $this->assertSame(200, $report['runtime']['shared_stage_ms']['mean']);
+        $this->assertSame(1, $report['runtime']['shared_stage_ms']['missing']);
+        $this->assertSame(0.0, $report['runtime']['rule_stage_wall_ms']['median']);
+        $this->assertSame(1, $report['runtime']['rule_stage_wall_ms']['measured']);
+        $this->assertSame(1, $report['runtime']['rule_stage_wall_ms']['missing']);
+        $this->assertSame(1, $report['runtime']['rule_stage_wall_ms']['not_applicable']);
+    }
+
+    public function test_variant_identity_cannot_change_across_repetitions(): void
+    {
+        $row = ['run' => 1, 'dataset_case_id' => 'C1', 'variant_id' => 'V1', 'language' => 'English', 'reference' => 2,
+            'a_status' => 'classified', 'a_priority' => 2, 'b_status' => 'classified', 'b_priority' => 2];
+
+        $this->expectException(\InvalidArgumentException::class);
+        app(StudyMetrics::class)->calculate([$row, array_replace($row, ['run' => 2, 'language' => 'Bisaya'])]);
+    }
+
+    public function test_bootstrap_rejects_different_variants_between_repetitions(): void
+    {
+        $rows = [];
+        foreach ([1, 2, 3] as $run) {
+            foreach (range(1, 5) as $version) {
+                $rows[] = ['run' => $run, 'dataset_case_id' => 'C1', 'variant_id' => 'R'.$run.'-V'.$version, 'language' => 'L'.$version,
+                    'reference' => 2, 'a_status' => 'classified', 'a_priority' => 2, 'b_status' => 'classified', 'b_priority' => 2];
+            }
+        }
+
+        $this->expectException(\InvalidArgumentException::class);
+        app(StudyStatistics::class)->bootstrap($rows, 20);
     }
 }

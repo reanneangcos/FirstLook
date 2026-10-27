@@ -6,16 +6,16 @@ use App\Services\TriageRules\DraftPatientMappings;
 use App\Services\TriageRules\EsiV4RuleCatalog;
 use App\Services\TriageRules\ProvisionalEsiRuleCatalog;
 use App\Services\TriageRules\ProvisionalEsiRuleLayer;
-use App\Services\TriageRules\RuleLayer;
 use App\Services\TriageRules\ResearchEsiRuleCatalog;
 use App\Services\TriageRules\ResearchEsiRuleLayer;
+use App\Services\TriageRules\RuleLayer;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 final class StudyProtocol
 {
-    public const VERSION = 'paired-study-v3-research-mode';
+    public const VERSION = 'paired-study-v4-research-mode';
 
     public const PROMPT = 'screening-study-v3';
 
@@ -26,7 +26,7 @@ final class StudyProtocol
 
     public function promptVersion(): string
     {
-        return $this->isResearch() ? 'screening-study-v4-research' : self::PROMPT;
+        return $this->isResearch() ? 'screening-study-v8-research' : self::PROMPT;
     }
 
     public function catalog(): ProvisionalEsiRuleCatalog|ResearchEsiRuleCatalog
@@ -59,6 +59,9 @@ final class StudyProtocol
         if ($unapproved !== [] && ! $this->isResearch()) {
             $blockers[] = 'Unapproved or changed definitions: '.implode(', ', $unapproved).'.';
         }
+        if ($this->isResearch() && (new ResearchEsiRuleCatalog)->approval() === null) {
+            $blockers[] = 'No nurse review record matches research rule version '.(new ResearchEsiRuleCatalog)->version().'. Record a new review in config/esi.php research_approval after any rule change.';
+        }
         $missingLevels = array_values(array_diff([1, 2, 3, 4, 5], array_column(array_filter($rules, fn (array $rule): bool => $this->isResearch() || $rule['approved']), 'priority')));
         if ($missingLevels !== []) {
             $blockers[] = 'No approved patient mapping for ESI '.implode(', ', $missingLevels).'.';
@@ -74,7 +77,8 @@ final class StudyProtocol
             'active_mode' => config('esi.mode'), 'rule_count' => count($rules),
             'approved_rule_count' => count($rules) - count($unapproved), 'missing_levels' => $missingLevels,
             'research_only' => $this->isResearch(), 'clinical_validation_established' => false,
-            'methodology_change' => $this->isResearch() ? 'Research-authored profiles replace mandatory negative bundles with positive-danger screening; unreported risks stay unassessed. The manuscript review requirement is not satisfied by this mode.' : null,
+            'methodology_change' => $this->isResearch() ? 'Research-authored profiles replace mandatory negative bundles with positive-danger screening; unreported risks stay unassessed. The catalog review record covers the rule specification, not measured clinical accuracy.' : null,
+            'research_approval' => $this->isResearch() ? (new ResearchEsiRuleCatalog)->approval() : null,
             'source_document' => EsiV4RuleCatalog::SOURCE_DOCUMENT,
             'limitation' => 'Checks configuration and review records, not clinical validity or extraction accuracy. Rules consume normalized patient concepts with original evidence.'];
     }
@@ -92,15 +96,16 @@ final class StudyProtocol
     {
         return array_values(array_map(fn (array $rule): array => array_intersect_key($rule, array_flip([
             'decision_point', 'priority', 'conditions', 'exclusions', 'handbook_section',
-            'adaptation_rationale', 'resource_rationale', 'explanation', 'rule_id', 'all', 'any', 'expected_resource_types',
+            'adaptation_rationale', 'resource_rationale', 'explanation', 'rule_id', 'all', 'any', 'none', 'min_age', 'expected_resource_types',
         ])), $this->catalog()->rules()));
     }
 
     public function prompt(): string
     {
-        return str_replace(['{{reviewed_criteria}}', '{{normalization_instructions}}', '{{danger_signals}}'],
+        return str_replace(['{{reviewed_criteria}}', '{{normalization_instructions}}', '{{danger_signals}}', '{{decision_checks}}'],
             [json_encode($this->criteria(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), (new NormalizedPatientFacts)->instructions(),
-                json_encode(['A' => ResearchEsiRuleCatalog::A_SIGNALS, 'B' => ResearchEsiRuleCatalog::B_SIGNALS], JSON_THROW_ON_ERROR)],
+                json_encode(['A' => ResearchEsiRuleCatalog::A_SIGNALS, 'B' => ResearchEsiRuleCatalog::B_SIGNALS], JSON_THROW_ON_ERROR),
+                json_encode(ResearchEsiRuleCatalog::decisionChecks(), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)],
             file_get_contents(resource_path('prompts/'.$this->promptVersion().'.txt')));
     }
 
@@ -123,10 +128,19 @@ final class StudyProtocol
         return ['protocol_version' => self::VERSION, 'prompt_version' => $this->promptVersion(),
             'prompt_sha256' => hash('sha256', str_replace('{{response_language}}', 'English', $this->prompt())),
             'reviewed_rules' => $this->catalog()->rules(), 'rule_version' => app(RuleLayer::class)->version(),
-            'research_only' => $this->isResearch(), 'criteria_status' => $this->isResearch() ? 'unvalidated_research_adaptation' : 'reviewed_definitions',
+            'research_only' => $this->isResearch(), 'criteria_status' => $this->criteriaStatus(),
             'settings' => $settings, 'validation_version' => ScreeningOutput::VALIDATION_VERSION,
             'retry_feedback_version' => ScreeningService::RETRY_FEEDBACK_VERSION,
             'schema' => app(ScreeningOutput::class)->schema(), 'files' => $files];
+    }
+
+    public function criteriaStatus(): string
+    {
+        if (! $this->isResearch()) {
+            return 'reviewed_definitions';
+        }
+
+        return (new ResearchEsiRuleCatalog)->approval() === null ? 'unvalidated_research_adaptation' : 'nurse_reviewed_research_adaptation';
     }
 
     public static function hash(array $value): string

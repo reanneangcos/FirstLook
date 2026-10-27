@@ -2,6 +2,8 @@
 
 namespace App\Services\Screening;
 
+use Illuminate\Container\Container;
+
 /** Evidence anchoring verifies provenance, not the semantic accuracy of an LLM interpretation. */
 final class NormalizedPatientFacts
 {
@@ -12,12 +14,20 @@ final class NormalizedPatientFacts
     /** @return array<string, string> */
     public static function definitions(): array
     {
-        return self::reviewedDefinitions() + (config('esi.mode') === 'research_prototype' ? ResearchPatientConcepts::definitions() : []);
+        return self::reviewedDefinitions() + (self::researchEnabled() ? ResearchPatientConcepts::definitions() : []);
     }
 
     public static function version(): string
     {
-        return config('esi.mode') === 'research_prototype' ? ResearchPatientConcepts::VERSION : self::VERSION;
+        return self::researchEnabled() ? ResearchPatientConcepts::VERSION : self::VERSION;
+    }
+
+    /** Standalone historical-rule evaluations retain the original vocabulary without requiring Laravel boot. */
+    private static function researchEnabled(): bool
+    {
+        $container = Container::getInstance();
+
+        return $container->bound('config') && $container->make('config')->get('esi.mode') === 'research_prototype';
     }
 
     /** The original vocabulary is immutable so historical approvals retain their exact scope. */
@@ -161,7 +171,7 @@ final class NormalizedPatientFacts
 
     public function instructions(): string
     {
-        $version = config('esi.mode') === 'research_prototype' ? 'normalization-v4-research' : 'normalization-v3';
+        $version = self::researchEnabled() ? 'normalization-v4-research' : 'normalization-v3';
 
         return file_get_contents(resource_path('prompts/'.$version.'.txt'))."\n"
             .json_encode(self::definitions(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);

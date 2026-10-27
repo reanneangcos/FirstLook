@@ -59,7 +59,8 @@ export default function Show({ patient }: { patient: PatientVisit }) {
                                 Method B:{' '}
                                 <strong>
                                     {patient.screening?.method_b_priority != null
-                                        ? `${patient.screening.method_b_result?.output_kind === 'provisional_esi_prediction' ? 'Provisional ' : ''}ESI ${patient.screening.method_b_priority}`
+                                        ? patient.screening.method_b_result?.display_label ||
+                                          `${patient.screening.method_b_result?.output_kind === 'provisional_esi_prediction' ? 'Provisional ' : ''}ESI ${patient.screening.method_b_priority}`
                                         : label(
                                               patient.screening?.method_b_status ?? 'not_evaluated',
                                           )}

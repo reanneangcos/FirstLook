@@ -25,9 +25,10 @@ class ScreeningSession extends Model
         ];
     }
 
+    /** Method A requests. Attempts tagged 'c' belong to a discontinued DEV-only method and are excluded. */
     public function attempts(): HasMany
     {
-        return $this->hasMany(ScreeningAttempt::class);
+        return $this->hasMany(ScreeningAttempt::class)->withAttributes(['method' => 'a']);
     }
 
     public function patientVisit(): BelongsTo

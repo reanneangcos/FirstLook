@@ -12,6 +12,7 @@ function JsonBlock({ value }: { value: unknown }) {
     );
 }
 export default function Show({ screening: s }: { screening: Session }) {
+    const researchRules = s.method_b_result?.output_kind === 'research_provisional_esi_prediction';
     return (
         <Layout title="Session details">
             <Link href="/admin/screenings" className="text-link back-link">
@@ -80,7 +81,10 @@ export default function Show({ screening: s }: { screening: Session }) {
                                         {s.request_settings.classification_mode ===
                                         'exploratory_llm_only'
                                             ? 'Luna only · exploratory'
-                                            : 'Pretrained LLM · provisional'}
+                                            : s.request_settings.classification_mode ===
+                                                'research_provisional_prediction'
+                                              ? 'Luna with study criteria'
+                                              : 'Pretrained LLM · provisional'}
                                     </span>
                                 </div>
                                 <div className="chat-bubble">
@@ -245,7 +249,9 @@ export default function Show({ screening: s }: { screening: Session }) {
                             <summary>Parsed Method A output</summary>
                             <JsonBlock value={s.parsed_output ?? 'No accepted response'} />
                         </details>
-                        <h3 className="subheading">Request attempts · {s.attempts.length}</h3>
+                        <h3 className="subheading">
+                            Method A request attempts · {s.attempts.length}
+                        </h3>
                         {s.attempts.map((a) => (
                             <details key={a.id}>
                                 <summary>
@@ -274,13 +280,15 @@ export default function Show({ screening: s }: { screening: Session }) {
                         <span className="method-letter muted">B</span>
                         <h2>
                             Method B ·{' '}
-                            {s.method_b_result?.output_kind === 'provisional_esi_prediction'
-                                ? 'Provisional ESI rules'
-                                : 'ESI rules'}
+                            {researchRules
+                                ? 'Prototype ESI rules'
+                                : s.method_b_result?.output_kind === 'provisional_esi_prediction'
+                                  ? 'Provisional ESI rules'
+                                  : 'ESI rules'}
                         </h2>
                         <span className={`status-badge ${s.method_b_status}`}>
                             {s.method_b_priority != null
-                                ? `ESI ${s.method_b_priority}`
+                                ? s.method_b_result?.display_label || `ESI ${s.method_b_priority}`
                                 : label(s.method_b_status)}
                         </span>
                         <p>
@@ -311,10 +319,14 @@ export default function Show({ screening: s }: { screening: Session }) {
                                         </summary>
                                         <p>{entry.condition}</p>
                                         <p>
-                                            Clinical approval:{' '}
+                                            {researchRules
+                                                ? 'Rule review: '
+                                                : 'Clinical approval: '}
                                             {entry.approved
-                                                ? `Approved by ${entry.reviewer_approval.reviewer}`
-                                                : 'Pending or incomplete'}
+                                                ? `Approved by ${entry.reviewer_approval.reviewer}${entry.reviewer_approval.reviewed_at ? ` (${entry.reviewer_approval.reviewed_at})` : ''}`
+                                                : researchRules
+                                                  ? 'No matching review record'
+                                                  : 'Pending or incomplete'}
                                         </p>
                                         <p>Required: {entry.required_fields.join(', ')}</p>
                                         <JsonBlock value={entry} />
@@ -329,9 +341,9 @@ export default function Show({ screening: s }: { screening: Session }) {
                         <div className="inline-note">
                             <CircleAlert size={18} />
                             <p>
-                                Preliminary decision support. Clinical criteria require reviewer
-                                approval. Patient-reported text alone does not provide all inputs
-                                needed for the complete ESI algorithm.
+                                {researchRules
+                                    ? 'Fictional-case research prototype. These are provisional predictions from patient reports; measured vital signs and clinical assessment are not included.'
+                                    : 'Preliminary decision support. Clinical criteria require reviewer approval. Patient-reported text alone does not provide all inputs needed for the complete ESI algorithm.'}
                             </p>
                         </div>
                     </section>

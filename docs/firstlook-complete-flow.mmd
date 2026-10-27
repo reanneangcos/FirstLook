@@ -1,0 +1,49 @@
+flowchart TD
+    CHAT["Patient chat reply<br/>English, Tagalog, Bisaya or mixed language"] --> INTAKE["Intake Luna request<br/>Identify field updates and language requests"]
+    INTAKE --> CLEAR{"Answer clear enough<br/>for its field?"}
+    CLEAR -- No --> FOLLOW["Retain unresolved evidence<br/>Ask a follow-up"]
+    FOLLOW --> CHAT
+    CLEAR -- Yes --> FIELDS["Accepted patient fields<br/>Unknown and skipped values remain unknown"]
+    DEV["Structured dataset record<br/>Reference answers excluded"] --> FIELDS
+
+    FIELDS --> SCREEN["SCREENING LUNA REQUEST<br/>Read the record using the fixed definitions<br/>and shared study criteria"]
+    VOCAB["124 concept definitions<br/>Negation, timing, uncertainty and evidence instructions"] --> SCREEN
+    SCREEN --> OUTPUT["One JSON response contains:<br/>1. Method A prediction<br/>2. Verbatim extracted facts<br/>3. Normalized concepts with states and quotations"]
+    OUTPUT --> CHECK{"Schema and quotation<br/>checks pass?"}
+    CHECK -- No --> RETRY{"Retry remains?"}
+    RETRY -- Yes --> FEEDBACK["Validation feedback only<br/>No reference ESI answer"]
+    FEEDBACK --> SCREEN
+    RETRY -- No --> FAIL["Technical failure<br/>B has no accepted facts"]
+    CHECK -- Yes --> MA["Save Method A unchanged"]
+    CHECK -- Yes --> FACTS["B receives facts only<br/>Exclude A priority and explanation"]
+
+    subgraph RULES["METHOD B: DETERMINISTIC ENGINE"]
+        FACTS --> VALID{"Valid evidence and scope?<br/>Age 18-120?<br/>No detected contradictions?"}
+        VALID -- No --> NR["Needs Review<br/>Null ESI"]
+        VALID -- Yes --> A{"A: one of 4 immediate-danger<br/>profiles matches?"}
+        A -- Yes --> E1["Provisional ESI 1"]
+        A -- No --> AG{"Reported or explicitly uncertain<br/>A danger without a complete match?"}
+        AG -- Yes --> NR
+        AG -- No --> B{"B: one of 15 high-risk<br/>profiles matches?"}
+        B -- Yes --> E2["Provisional ESI 2"]
+        B -- No --> BG{"Reported or explicitly uncertain<br/>B danger without a complete match?"}
+        BG -- Yes --> NR
+        BG -- No --> C{"C: complete resource profile<br/>and coverage checks pass?"}
+        C -- No --> NR
+        C -- Yes --> R["13 possible profiles<br/>Union distinct fixed resource types"]
+        R -- Zero --> E5["Provisional ESI 5"]
+        R -- One --> E4["Provisional ESI 4"]
+        R -- "Two or more" --> D["D: vital signs unassessed"]
+        D --> E3["Most likely ESI 3<br/>Nurse evaluation and vital signs required"]
+    end
+
+    E1 --> BOUT["Save B output<br/>Matched rules, evidence, source and version"]
+    E2 --> BOUT
+    E3 --> BOUT
+    E4 --> BOUT
+    E5 --> BOUT
+    NR --> BOUT
+    BOUT --> DB["Database and staff dashboard"]
+    MA --> DB
+    FAIL --> DB
+    DB --> SCORE["After prediction: join separate reference key<br/>for paired study scoring"]

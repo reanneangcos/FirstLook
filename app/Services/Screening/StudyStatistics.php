@@ -19,8 +19,14 @@ final class StudyStatistics
         $this->metrics->calculate($rows);
         $groups = collect($rows)->groupBy('dataset_case_id')->sortKeys()->map(fn ($items): array => $items->groupBy('run')->map->all()->all())->values()->all();
         foreach ($groups as $group) {
+            $versions = array_column($group[1] ?? [], 'variant_id');
+            sort($versions);
             foreach ([1, 2, 3] as $run) {
-                if (count($group[$run] ?? []) !== 5) {
+                $runRows = $group[$run] ?? [];
+                $runVersions = array_column($runRows, 'variant_id');
+                sort($runVersions);
+                if (count($runRows) !== 5 || count(array_unique(array_column($runRows, 'language'))) !== 5
+                    || $runVersions !== $versions) {
                     throw new InvalidArgumentException('Keep all five versions and all three runs in each bootstrap group.');
                 }
             }
@@ -59,23 +65,34 @@ final class StudyStatistics
         foreach ([1, 2, 3] as $run) {
             $rows = [];
             $consistent = ['a' => 0, 'b' => 0];
+            $correctConsistent = ['a' => 0, 'b' => 0];
             foreach ($groups as $group) {
                 array_push($rows, ...$group[$run]);
                 foreach (['a', 'b'] as $method) {
                     $consistent[$method] += (int) (array_all($group[$run], fn (array $row): bool => $row[$method.'_status'] === 'classified')
                         && count(array_unique(array_column($group[$run], $method.'_priority'))) === 1);
+                    $correctConsistent[$method] += (int) array_all($group[$run], fn (array $row): bool => $row[$method.'_status'] === 'classified'
+                        && $row[$method.'_priority'] === $row['reference']);
                 }
             }
             $summary = $this->metrics->summarize($rows);
-            foreach (['accuracy', 'macro_f1', 'misclassification_rate', 'undertriage_rate', 'overtriage_rate'] as $metric) {
+            foreach (['accuracy', 'macro_f1', 'misclassification_rate', 'undertriage_rate', 'overtriage_rate', 'one_level_undertriage_rate', 'severe_undertriage_rate'] as $metric) {
                 $a = $summary['common_pairs']['a'][$metric];
                 $b = $summary['common_pairs']['b'][$metric];
                 $perRun[$metric][] = $a === null || $b === null ? null : $b - $a;
             }
-            foreach (['coverage', 'needs_review_rate', 'technical_failure_rate', 'completion_adjusted_accuracy'] as $metric) {
+            foreach (['coverage', 'needs_review_rate', 'technical_failure_rate', 'upstream_failure_rate', 'completion_adjusted_accuracy'] as $metric) {
                 $perRun[$metric][] = $summary['methods']['b'][$metric] - $summary['methods']['a'][$metric];
             }
             $perRun['language_consistency'][] = ($consistent['b'] - $consistent['a']) / count($groups);
+            $perRun['correct_language_consistency'][] = ($correctConsistent['b'] - $correctConsistent['a']) / count($groups);
+            foreach (range(1, 5) as $level) {
+                foreach (['common_pairs' => 'recall_by_esi', 'methods' => 'completion_adjusted_recall_by_esi'] as $section => $metric) {
+                    $a = $summary[$section]['a'][$metric][$level];
+                    $b = $summary[$section]['b'][$metric][$level];
+                    $perRun[$metric.'_'.$level][] = $a === null || $b === null ? null : $b - $a;
+                }
+            }
         }
 
         return array_map(fn (array $values): ?float => in_array(null, $values, true) ? null : array_sum($values) / 3, $perRun);
@@ -109,7 +126,7 @@ final class StudyStatistics
             $c += (int) (! $aCorrect && $bCorrect);
         }
         $n = $b + $c;
-        $chiSquare = $n === 0 ? 0.0 : (abs($b - $c) - 1) ** 2 / $n;
+        $chiSquare = $n === 0 ? 0.0 : max(0, abs($b - $c) - 1) ** 2 / $n;
         $exact = $n < $exactBelow;
         if ($exact) {
             $term = 2.0 ** (-$n);

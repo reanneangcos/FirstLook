@@ -25,6 +25,7 @@ final class ResearchEsiRuleLayer implements RuleLayer
         foreach ($understoodFacts as $fact) {
             if (! is_array($fact) || ! in_array($fact['field'] ?? null, PatientFields::NAMES, true)
                 || isset($fields[$fact['field']]) || ! in_array($fact['state'] ?? null, ['reported', 'absent', 'unknown', 'not_applicable'], true)
+                || ($fact['state'] === 'unknown' && (($fact['value'] ?? null) !== null || ($fact['evidence'] ?? null) !== null))
                 || ($fact['state'] !== 'unknown' && (! is_string($fact['value'] ?? null) || trim($fact['value']) === '' || $fact['value'] !== ($fact['evidence'] ?? null)))) {
                 return $this->result([], [], null, 'input', 'Invalid or duplicate extracted fields.', []);
             }
@@ -50,7 +51,7 @@ final class ResearchEsiRuleLayer implements RuleLayer
                 if ($rule['decision_point'] !== $point) {
                     continue;
                 }
-                $entry = $this->evaluateRule($rule, $concepts);
+                $entry = $this->evaluateRule($rule, $concepts, (int) $age['value']);
                 $trace[] = $entry;
                 if ($entry['outcome'] === 'matched') {
                     $matches[] = $entry;
@@ -66,6 +67,10 @@ final class ResearchEsiRuleLayer implements RuleLayer
                 if ($point === 'A' && (($concepts['breathing']['state'] ?? null) === 'unknown') && ($concepts['breathing']['evidence'] ?? []) !== []) {
                     $blocking[] = 'breathing';
                 }
+                /** Both editions let severe orthopedic-injury pain wait for resource prediction (v4 pp. 12, 26; v5 p. 12). */
+                if ($point === 'B' && $this->reported($concepts, 'limb_injury')) {
+                    $blocking = array_values(array_diff($blocking, ['severe_pain']));
+                }
                 if ($blocking !== []) {
                     return $this->result($trace, [], null, $point, 'A reported or explicitly uncertain danger signal lacks a complete supported profile: '.implode(', ', $blocking).'.', $concepts);
                 }
@@ -79,7 +84,9 @@ final class ResearchEsiRuleLayer implements RuleLayer
                     return $this->result($trace, [], null, 'C', 'No research resource profile matches the available facts. No default ESI 3 is assigned.', $concepts);
                 }
                 $resources = array_values(array_unique(array_merge(...array_column($matches, 'expected_resource_types'))));
-                $priority = match (count($resources)) { 0 => 5, 1 => 4, default => 3 };
+                $priority = match (count($resources)) {
+                    0 => 5, 1 => 4, default => 3
+                };
 
                 return $this->result($trace, $matches, $priority, 'C', 'Matched resource-profile hypotheses: '.implode(', ', array_column($matches, 'rule_id')).'.', $concepts);
             }
@@ -88,7 +95,7 @@ final class ResearchEsiRuleLayer implements RuleLayer
         return $this->result($trace, [], null, 'no_matching_rule', 'No supported research profile.', $concepts);
     }
 
-    private function evaluateRule(array $rule, array $concepts): array
+    private function evaluateRule(array $rule, array $concepts, int $age): array
     {
         $observations = [];
         $check = function (string $name, string $expected, string $group) use ($concepts, &$observations): bool {
@@ -111,6 +118,17 @@ final class ResearchEsiRuleLayer implements RuleLayer
             }
             $matched = $groupMatched && $matched;
         }
+        foreach ($rule['none'] as $name) {
+            $excluded = $this->reported($concepts, $name);
+            $observations[] = ['concept' => $name, 'required_state' => 'not_reported', 'state' => $concepts[$name]['state'] ?? 'missing',
+                'group' => 'none', 'matches' => ! $excluded, 'evidence' => $concepts[$name]['evidence'] ?? []];
+            $matched = ! $excluded && $matched;
+        }
+        if ($rule['min_age'] !== null) {
+            $observations[] = ['concept' => 'age', 'required_state' => 'at_least_'.$rule['min_age'], 'state' => (string) $age,
+                'group' => 'age', 'matches' => $age >= $rule['min_age'], 'evidence' => []];
+            $matched = $age >= $rule['min_age'] && $matched;
+        }
 
         return $rule + ['outcome' => $matched ? 'matched' : 'not_matched', 'observations' => $observations,
             'matched_evidence' => array_values(array_filter($observations, fn (array $item): bool => $item['matches'])),
@@ -127,16 +145,12 @@ final class ResearchEsiRuleLayer implements RuleLayer
         if (array_any($concepts, fn (array $fact): bool => $fact['state'] === 'contradictory')) {
             return true;
         }
-        foreach ([['breathing_without_help', 'breathing'], ['chest_pressure', 'chest_discomfort'],
-            ['right_lower_abdominal_pain', 'abdominal_pain'], ['worst_ever_headache', 'headache'],
-            ['repeated_vomiting', 'vomiting'], ['current_suicidal_intent', 'self_harm_thoughts'],
-            ['bilateral_leg_weakness', 'new_motor_weakness']] as [$specific, $general]) {
+        foreach (ResearchEsiRuleCatalog::SPECIFIC_GENERAL_CONFLICTS as [$specific, $general]) {
             if ($this->reported($concepts, $specific) && ($concepts[$general]['state'] ?? null) === 'absent') {
                 return true;
             }
         }
-        foreach ([['unresponsive_now', 'responding_normally'], ['unresponsive_now', 'responds_to_voice'],
-            ['bleeding_stopped', 'uncontrolled_bleeding'], ['symptoms_improving', 'worsening']] as [$left, $right]) {
+        foreach (ResearchEsiRuleCatalog::MUTUALLY_EXCLUSIVE as [$left, $right]) {
             if ($this->reported($concepts, $left) && $this->reported($concepts, $right)) {
                 return true;
             }
@@ -149,33 +163,22 @@ final class ResearchEsiRuleLayer implements RuleLayer
     private function unsupportedForResources(array $concepts, array $matches): array
     {
         $blocked = [];
+        /** Like danger signals, an unknown state blocks only when it carries quoted evidence; an empty unknown is unmentioned. */
         foreach (['unmapped_symptom', 'head_injury'] as $name) {
-            if (isset($concepts[$name]) && ! in_array($concepts[$name]['state'], ['absent', 'not_applicable'], true)) {
+            if ($this->reported($concepts, $name) || (($concepts[$name]['state'] ?? null) === 'unknown' && ($concepts[$name]['evidence'] ?? []) !== [])) {
                 $blocked[] = $name;
             }
         }
         if ($this->reported($concepts, 'pregnancy') && ($this->reported($concepts, 'abdominal_pain') || $this->reported($concepts, 'burning_urination'))) {
             $blocked[] = 'pregnancy_with_abdominal_or_urinary_symptoms';
         }
-        $byRule = [
-            'RP-C-ABDOMEN' => ['abdominal_pain', 'right_lower_abdominal_pain', 'nausea', 'loss_of_appetite', 'vomiting'],
-            'RP-C-FEBRILE-COUGH' => ['cough', 'fever', 'general_weakness', 'loss_of_appetite', 'chills'],
-            'RP-C-VOMITING' => ['vomiting', 'repeated_vomiting', 'nausea', 'poor_oral_intake', 'dizziness'],
-            'RP-C-DIARRHEA' => ['diarrhea', 'general_weakness', 'orthostatic_lightheadedness', 'dizziness', 'abdominal_pain'],
-            'RP-C-LEG-SWELLING' => ['one_sided_lower_leg_pain', 'one_sided_lower_leg_swelling', 'limb_pain', 'limb_swelling'],
-            'RP-C-LIMB-INJURY' => ['limb_injury', 'limb_pain', 'limb_swelling', 'ankle_twist', 'ankle_swelling', 'pain_on_weight_bearing'],
-            'RP-C-URINARY' => ['burning_urination', 'urinary_frequency', 'urinary_urgency'],
-            'RP-C-CUT' => ['skin_cut', 'finger_cut', 'separated_wound_edges', 'bleeding_stopped'],
-            'RP-C-EAR-OBJECT' => ['ear_foreign_body'],
-            'RP-C-LOCAL-SKIN' => ['localized_itchy_skin'],
-            'RP-C-IMPROVING-URI' => ['cough', 'runny_nose', 'scratchy_throat', 'sneezing', 'watery_eyes'],
-            'RP-C-NASAL' => ['runny_nose', 'sneezing', 'watery_eyes', 'scratchy_throat'],
-        ];
-        $symptoms = array_values(array_unique([...array_merge(...array_values($byRule)),
-            'headache', 'back_pain', 'flank_pain', 'vaginal_discharge', 'generalized_rash', 'numbness', 'eye_pain', 'ongoing_wound_bleeding']));
+        $byRule = ResearchEsiRuleCatalog::RESOURCE_ACCOUNTED;
+        $symptoms = ResearchEsiRuleCatalog::resourceSymptoms();
         $accounted = [];
         foreach ($matches as $match) {
-            $accounted = [...$accounted, ...($byRule[$match['rule_id']] ?? [])];
+            foreach ($byRule[$match['rule_id']] ?? [] as $concept) {
+                $accounted = [...$accounted, $concept, ...(ResearchEsiRuleCatalog::SPECIFIC_FORMS[$concept] ?? [])];
+            }
         }
         foreach ($symptoms as $name) {
             if ($this->reported($concepts, $name) && ! in_array($name, $accounted, true)) {
@@ -199,6 +202,7 @@ final class ResearchEsiRuleLayer implements RuleLayer
             }
         }
         $resources = $selected === [] ? [] : array_values(array_unique(array_merge(...array_column($selected, 'expected_resource_types'))));
+        $approval = $this->catalog->approval();
 
         return ['status' => $priority === null ? 'needs_review' : 'classified', 'priority' => $priority,
             'display_label' => $priority === null ? 'Needs Review' : ($priority === 3 ? EsiV4RuleCatalog::PROVISIONAL_THREE_LABEL : 'Provisional ESI '.$priority),
@@ -206,8 +210,9 @@ final class ResearchEsiRuleLayer implements RuleLayer
             'rule_version' => $this->version(), 'trace' => $trace, 'matched_rule_ids' => array_column($selected, 'rule_id'),
             'stopped_at' => $point, 'output_kind' => 'research_provisional_esi_prediction',
             'clinical_review_required' => true, 'clinically_validated' => false,
-            'reviewer_approval_status' => 'not_clinically_validated',
-            'flags' => ['fictional_research_only', 'patient_report_only', 'unvalidated_research_adaptation', 'decision_d_not_assessed', 'earlier_risk_not_clinically_excluded'],
+            'reviewer_approval_status' => $approval['status'] ?? 'not_clinically_validated',
+            'reviewer_approval_record' => $approval === null ? null : $approval['record_id'],
+            'flags' => ['fictional_research_only', 'patient_report_only', $approval === null ? 'unvalidated_research_adaptation' : 'nurse_reviewed_research_adaptation', 'decision_d_not_assessed', 'earlier_risk_not_clinically_excluded'],
             'unassessed_danger_signs' => $unassessed,
             'expected_resources' => ['basis' => 'fixed_research_profile_hypothesis', 'types' => $point === 'C' && $priority !== null ? $resources : [],
                 'count_band' => $point === 'C' && $priority !== null ? min(2, count($resources)) : null, 'observed_or_ordered' => false],

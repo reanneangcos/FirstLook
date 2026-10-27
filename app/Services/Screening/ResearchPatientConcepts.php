@@ -4,9 +4,8 @@ namespace App\Services\Screening;
 
 final class ResearchPatientConcepts
 {
-    public const VERSION = 'patient-concepts-v2-research';
+    public const VERSION = 'patient-concepts-v3-research';
 
-    /** Factual meanings only: no ESI level, diagnosis, risk judgment or resource estimate. */
     public static function definitions(): array
     {
         return [
@@ -62,6 +61,45 @@ final class ResearchPatientConcepts
             'chills' => 'Reported chills or shivering with the current complaint.',
             'numbness' => 'Reported loss or reduction of sensation.',
             'tenderness' => 'Patient reports soreness or tenderness, not an examination finding.',
+            'facial_droop' => 'Reported new drooping or uneven sagging of one side of the face.',
+            'new_drowsiness' => 'Reported new unusual sleepiness or difficulty staying awake compared with usual; not ordinary tiredness.',
+            'stiff_neck' => 'Reported neck stiffness or inability to bend the neck forward; not ordinary neck muscle soreness after strain.',
+            'thoughts_of_harming_others' => 'Reported current thoughts or intent to hurt or kill another person.',
+            'hallucinations' => 'Reported hearing voices or seeing things that others do not; not dreams.',
+            'sexual_assault' => 'Reported recent sexual assault of the described person.',
+            'domestic_violence' => 'Reported recent physical harm or threats from a partner or household member.',
+            'unable_to_pass_urine' => 'Reported current inability to pass urine despite trying; not burning or a weak stream alone.',
+            'sickle_cell_disease' => 'Sickle cell disease explicitly reported as known history; never inferred.',
+            'burn_injury' => 'Reported burn of the skin from heat, flame, hot liquid, chemical or electricity.',
+            'burn_blistering' => 'Reported blisters, peeling, white, leathery or charred skin at a burn; not redness alone.',
+            'penetrating_injury' => 'Reported stab, gunshot or impalement wound; not a small cut from a household knife or tool.',
+            'struck_by_vehicle' => 'Reported being hit by a moving car, motorcycle or other vehicle while walking or cycling.',
+            'loss_of_consciousness' => 'Reported passing out, blacking out or being knocked out at the time of the current event or injury; distinct from current unresponsiveness.',
+            'memory_loss_of_event' => 'Reported inability to remember the injury or the events around it.',
+            'nosebleed' => 'Reported bleeding from the nose.',
+            'left_lower_abdominal_pain' => 'Reported pain specifically in the lower left abdomen; unspecified stomach pain is insufficient.',
+            'recent_childbirth' => 'Reported giving birth within the past several weeks.',
+            'heavy_vaginal_bleeding' => 'Reported heavy vaginal bleeding, such as soaking pads quickly or passing large clots; not spotting.',
+            'testicular_pain' => 'Reported pain in a testicle or the scrotum.',
+            'vision_loss' => 'Reported partial or complete loss of sight in one or both eyes; not mild blur alone.',
+            'chemical_in_eye' => 'Reported chemical, cleaning product, acid or alkali splashed into the eye.',
+            'eye_injury' => 'Reported blow, puncture or other trauma to the eye; not dust or a small particle.',
+            'cannot_open_eye' => 'Reported inability to open the affected eye.',
+            'eye_foreign_particle' => 'Reported dust, sand, an eyelash or a similar small particle in the eye; not a chemical or a penetrating object.',
+            'poison_ingestion' => 'Reported swallowing a poison, chemical, pesticide or other non-medicine toxic substance.',
+            'diabetes_history' => 'Diabetes explicitly reported as known history; never inferred from symptoms.',
+            'dialysis_patient' => 'Explicit report that the person receives regular kidney dialysis.',
+            'missed_dialysis' => 'Reported missed or incomplete scheduled dialysis.',
+            'organ_transplant' => 'Explicit report of having received an organ transplant.',
+            'heart_valve_replacement' => 'Explicit report of having a replaced or artificial heart valve.',
+            'cold_pale_limb' => 'Reported arm, leg, hand or foot that has become cold, pale or blue compared with the other side.',
+            'amputation' => 'Reported partial or complete cutting off of a finger, toe or limb.',
+            'neck_pain' => 'Reported pain in the neck accompanying the current complaint.',
+            'fall_from_height' => 'Reported fall from about 6 metres (20 feet) or higher, such as from a second storey or above; not a fall from standing.',
+            'vehicle_ejection_or_entrapment' => 'Reported being thrown out of a vehicle in a crash, or trapped and needing to be cut or pried free.',
+            'bleeding_disorder' => 'Known low platelets, hemophilia or another clotting disorder explicitly reported as history.',
+            'pregnancy_loss' => 'Reported recent miscarriage, stillbirth or other loss of a pregnancy.',
+            'unable_to_swallow_saliva' => 'Reported drooling or being unable to swallow one\'s own saliva; not ordinary difficulty swallowing food.',
         ];
     }
 }
