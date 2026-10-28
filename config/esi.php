@@ -66,7 +66,7 @@ return [
     ),
 
     /**
-     * Verbal review of the complete research_prototype catalog, as reported by the project team.
+     * Verbal review of the research_prototype catalog, as reported by the project team.
      * Accepted only while rule_version equals ResearchEsiRuleCatalog::version(); editing any
      * profile, danger signal, decision check, concept definition or engine file changes that
      * version, so readiness then blocks until a new review is recorded here.
@@ -74,15 +74,35 @@ return [
     'research_approval' => [
         'status' => 'approved',
         'reviewer' => 'Abigail Rose Gayatin-Sabandal, PHRN, USRN',
-        'reviewed_at' => '2026-10-27',
-        'record_id' => 'FIRSTLOOK-REPORTED-VERBAL-2026-10-27-01',
-        'rule_version' => 'research-esi-patient-report-2.0.0+772a55351e054556',
+        'reviewed_at' => '2026-10-28',
+        'record_id' => 'FIRSTLOOK-REPORTED-VERBAL-2026-10-28-01',
+        'rule_version' => 'research-esi-patient-report-2.1.0+9143c6ea11951ef1',
         'approval_method' => 'verbal',
         'evidence_type' => 'user_report',
-        'evidence_reference' => 'Project chat, 27 October 2026: the team reported that the reviewer validated the final rule set.',
-        'scope_basis' => 'All 70 profiles of research-esi-patient-report-2.0.0 (9 at A, 47 at B, 14 at C), the A and B danger-signal lists, the decision checks and the normalized concept definitions.',
+        'evidence_reference' => 'Project chat, 28 October 2026: the team reported that the reviewer verbally agreed to the version 2.1.0 changes. The written review form (FirstLook-Rule-Review-v2.1.0.docx) was not yet signed.',
+        'scope_basis' => 'All 92 profiles of research-esi-patient-report-2.1.0 (11 at A, 50 at B, 31 at C), including the 22 profiles, 18 concepts, 4 profile changes and 2 engine changes added after the first TEST run; unchanged parts were reviewed for 2.0.0 on 27 October 2026.',
         'direct_reviewer_confirmation' => false,
         'signed_record_reference' => null,
+    ],
+
+    /**
+     * Superseded record for version 2.0.0, kept for the first TEST run (firstlook-final-2026-10-27).
+     * It no longer approves the active catalog because its rule_version does not match.
+     */
+    'research_approval_history' => [
+        [
+            'status' => 'approved',
+            'reviewer' => 'Abigail Rose Gayatin-Sabandal, PHRN, USRN',
+            'reviewed_at' => '2026-10-27',
+            'record_id' => 'FIRSTLOOK-REPORTED-VERBAL-2026-10-27-01',
+            'rule_version' => 'research-esi-patient-report-2.0.0+772a55351e054556',
+            'approval_method' => 'verbal',
+            'evidence_type' => 'user_report',
+            'evidence_reference' => 'Project chat, 27 October 2026: the team reported that the reviewer validated the final rule set.',
+            'scope_basis' => 'All 70 profiles of research-esi-patient-report-2.0.0 (9 at A, 47 at B, 14 at C), the A and B danger-signal lists, the decision checks and the normalized concept definitions.',
+            'direct_reviewer_confirmation' => false,
+            'signed_record_reference' => null,
+        ],
     ],
 
     /**

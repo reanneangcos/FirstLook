@@ -1,12 +1,12 @@
 # FirstLook prototype rules and paired testing
 
-Updated 22 October 2026. Active mode: `research_prototype`. Rule version `research-esi-patient-report-2.0.0`.
+Updated 28 October 2026. Active mode: `research_prototype`. Rule version `research-esi-patient-report-2.1.0` (92 profiles). Version 2.1.0 was written after the first TEST run; see [Version 2.1.0](#version-210-changes-after-the-first-test-run).
 
 ## What is implemented
 
 Method B has **one deterministic engine with input checks and A/B/C/D stages**. Its 70 profiles comprise nine A profiles, forty-seven B profiles and fourteen C profiles. The original 32 were developed on the DEV split; the 38 added in version 2.0.0 were written from handbook categories, each with a quoted handbook basis, without reference to TEST inputs. It accepts the existing 15 patient fields through evidence-linked, language-independent concepts. It has no per-language phrase lists, case-ID lookups, reference-label lookup, second LLM decision or fallback ESI 3.
 
-The result statuses are `classified` or `needs_review`; execution errors are recorded separately. There is no `unreviewed` result status. The complete 70-profile catalog has a verbal review record (Abigail Rose Gayatin-Sabandal, PHRN, USRN, 27 October 2026, `FIRSTLOOK-REPORTED-VERBAL-2026-10-27-01`) in `config/esi.php` under `research_approval`. It applies only while its `rule_version` matches the catalog; any rule, signal, concept or engine change makes `study:check` block until a new review is recorded. The review covers the rule specification, not measured clinical accuracy. The old 18 approved definitions, their hashes and earlier database results remain intact.
+The result statuses are `classified` or `needs_review`; execution errors are recorded separately. There is no `unreviewed` result status. The 70-profile version 2.0.0 catalog has a verbal review record (Abigail Rose Gayatin-Sabandal, PHRN, USRN, 27 October 2026, `FIRSTLOOK-REPORTED-VERBAL-2026-10-27-01`) in `config/esi.php` under `research_approval`. Version 2.1.0 (92 profiles) has a verbal approval reported by the team on 28 October 2026 (`FIRSTLOOK-REPORTED-VERBAL-2026-10-28-01`); the written review form is not yet signed. The 2.0.0 record is kept under `research_approval_history`. A record applies only while its `rule_version` matches the catalog; any rule, signal, concept or engine change makes `study:check` block until a new review is recorded. The review covers the rule specification, not measured clinical accuracy. The old 18 approved definitions, their hashes and earlier database results remain intact.
 
 ## Method A and Method B
 
@@ -156,6 +156,22 @@ Links were checked on 21 October 2026. Access level is disclosed below; publishe
 4. **Gaber et al. (2025), “Evaluating large language model workflows in clinical decision support for triage and referral and diagnosis,” npj Digital Medicine 8:263. DOI: 10.1038/s41746-025-01684-1.** [Publisher article](https://www.nature.com/articles/s41746-025-01684-1), [PMC copy](https://pmc.ncbi.nlm.nih.gov/articles/PMC12064692/). Indexed full-text Methods inspected; direct page retrieval encountered access challenges. The study distinguished general-user symptom/basic-information inputs from clinical-user inputs augmented with initial vital signs. This supports studying restricted-input predictions, not claiming complete clinical ESI or transferring its model performance to Luna.
 
 5. **Sharma et al. (2026), “ED-triage-agent: a multi-agent framework for human-in-the-loop emergency triage,” International Journal of Medical Informatics 221:106652. DOI: 10.1016/j.ijmedinf.2026.106652.** [PubMed abstract](https://pubmed.ncbi.nlm.nih.gov/42612553/). Abstract inspected; online publication 18 August 2026, issue date 15 November 2026. It distinguishes symptom-only provisional ESI-scaled signals from later recommendations incorporating vital signs. This is the closest support for the two-stage concept. It uses a different multi-agent/RAG architecture and does not validate our deterministic profiles; prospective clinical validation remains a limitation in its conclusion.
+
+## Version 2.1.0 changes after the first TEST run
+
+The frozen TEST run of version 2.0.0 (`firstlook-final-2026-10-27`, 1,800 records) left about half of all inputs as Needs review, mostly at decision point C. Version 2.1.0 was written **after inspecting those TEST outputs**, so TEST is no longer unseen for this version. Any result produced with it must say so. The 2.0.0 run and its scored results are kept unchanged in `storage/app/private/studies/firstlook-final-2026-10-27/`.
+
+Changes, by type:
+
+- **New concepts (18):** `choking`, `bruising`, `skin_dryness`, `skin_redness`, `skin_lump`, `muscle_stiffness`, `limited_movement`, `localized_warmth`, `nasal_congestion`, `bloating`, `dry_mouth`, `vaginal_spotting`, `blood_in_urine`, `palpitations`, `animal_bite`, `torso_injury`, `minor_wound`, `deep_wound`. `scratchy_throat` now includes a sore throat. Vocabulary version `patient-concepts-v4-research`; symptom prompt `normalization-v5-research`; Method A prompt `screening-study-v9-research`.
+- **Minor accompanying findings no longer block C.** Bruising, dryness, local redness, stiffness, warmth, congestion, bloating, dry mouth and tenderness are not in `c_symptoms_needing_coverage`. They cannot produce a level on their own.
+- **New A profiles (2):** `RP-A-RESPIRATORY-DISTRESS`, `RP-A-CHOKING`.
+- **New B profiles (3):** `RP-B-SEVERE-PAIN-DISTRESS` (explicit severe pain or distress outside a limb injury), `RP-B-FAINTING`, `RP-B-GI-BLEEDING`. `RP-B-ALLERGY` also accepts a widespread rash in its first group.
+- **New C profiles (17):** `RP-C-GI-FLUID-LOSS`, `RP-C-URINARY-FEVER`, `RP-C-BLOOD-IN-URINE`, `RP-C-JOINT-SWELLING`, `RP-C-SKIN-INFECTION`, `RP-C-DEEP-WOUND`, `RP-C-WOUND-REPAIR`, `RP-C-FACE-CUT`, `RP-C-TORSO-INJURY`, `RP-C-SORE-THROAT-FEVER`, `RP-C-MINOR-CUT`, `RP-C-BRUISE`, `RP-C-SKIN-LUMP`, `RP-C-MINOR-BURN`, `RP-C-ANIMAL-BITE`, `RP-C-SORE-THROAT`, `RP-C-BACK-STRAIN`.
+- **Loosened C profiles (3):** `RP-C-LOCAL-SKIN` and `RP-C-NASAL` no longer require explicit denials or a report of feeling well, only no reported fever (and, for skin, no widespread rash). `RP-C-LIMB-INJURY` also accepts limited movement or bruising.
+- **Engine:** chest discomfort no longer blocks decision B when both cough and fever are reported (v4 p. 19 and Table 3-1). A head injury blocks C only when no matched profile accounts for it.
+
+Most new profiles are researcher hypotheses, not handbook examples; three cite ESI v4 Table 4-1 (simple wound care and tetanus immunization are not resources). On the saved 2.0.0 TEST facts, without new LLM output, the 2.1.0 engine reduces Method B Needs review from 905 to 645 of 1,775 evaluable records, with no undertriage. That replay is an estimate only; the new concepts take effect only in a fresh run.
 
 ## Methodology change to disclose
 

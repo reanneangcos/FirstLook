@@ -6,7 +6,7 @@ use App\Services\Screening\NormalizedPatientFacts;
 
 final class ResearchEsiRuleCatalog
 {
-    public const VERSION = 'research-esi-patient-report-2.0.0';
+    public const VERSION = 'research-esi-patient-report-2.1.0';
 
     public const SOURCES = [
         'handbook' => 'https://www.govinfo.gov/content/pkg/GOVPUB-HE20_6500-PURL-gpo23161/pdf/GOVPUB-HE20_6500-PURL-gpo23161.pdf',
@@ -28,12 +28,12 @@ final class ResearchEsiRuleCatalog
 
     /** At decision point C, these reported concepts block a prediction unless a matched profile accounts for them. */
     public const RESOURCE_ACCOUNTED = [
-        'RP-C-ABDOMEN' => ['abdominal_pain', 'right_lower_abdominal_pain', 'nausea', 'loss_of_appetite', 'vomiting'],
-        'RP-C-FEBRILE-COUGH' => ['cough', 'fever', 'general_weakness', 'loss_of_appetite', 'chills'],
+        'RP-C-ABDOMEN' => ['abdominal_pain', 'right_lower_abdominal_pain', 'nausea', 'loss_of_appetite', 'vomiting', 'vaginal_spotting'],
+        'RP-C-FEBRILE-COUGH' => ['cough', 'fever', 'general_weakness', 'loss_of_appetite', 'chills', 'chest_discomfort', 'chest_pressure', 'scratchy_throat'],
         'RP-C-VOMITING' => ['vomiting', 'repeated_vomiting', 'nausea', 'poor_oral_intake', 'dizziness'],
         'RP-C-DIARRHEA' => ['diarrhea', 'general_weakness', 'orthostatic_lightheadedness', 'dizziness', 'abdominal_pain'],
         'RP-C-LEG-SWELLING' => ['one_sided_lower_leg_pain', 'one_sided_lower_leg_swelling', 'limb_pain', 'limb_swelling'],
-        'RP-C-LIMB-INJURY' => ['limb_injury', 'limb_pain', 'limb_swelling', 'ankle_twist', 'ankle_swelling', 'pain_on_weight_bearing'],
+        'RP-C-LIMB-INJURY' => ['limb_injury', 'limb_pain', 'limb_swelling', 'ankle_twist', 'ankle_swelling', 'pain_on_weight_bearing', 'limited_movement'],
         'RP-C-URINARY' => ['burning_urination', 'urinary_frequency', 'urinary_urgency'],
         'RP-C-CUT' => ['skin_cut', 'finger_cut', 'separated_wound_edges', 'bleeding_stopped', 'limb_injury', 'limb_pain'],
         'RP-C-EAR-OBJECT' => ['ear_foreign_body'],
@@ -41,6 +41,24 @@ final class ResearchEsiRuleCatalog
         'RP-C-IMPROVING-URI' => ['cough', 'runny_nose', 'scratchy_throat', 'sneezing', 'watery_eyes'],
         'RP-C-NASAL' => ['runny_nose', 'sneezing', 'watery_eyes', 'scratchy_throat'],
         'RP-C-EYE-PARTICLE' => ['eye_foreign_particle', 'watery_eyes', 'eye_pain'],
+        'RP-C-GI-FLUID-LOSS' => ['diarrhea', 'vomiting', 'repeated_vomiting', 'nausea', 'general_weakness', 'dizziness', 'orthostatic_lightheadedness',
+            'poor_oral_intake', 'loss_of_appetite', 'abdominal_pain'],
+        'RP-C-URINARY-FEVER' => ['burning_urination', 'urinary_frequency', 'urinary_urgency', 'fever', 'abdominal_pain'],
+        'RP-C-BLOOD-IN-URINE' => ['blood_in_urine', 'back_pain', 'flank_pain', 'nausea', 'abdominal_pain', 'burning_urination', 'urinary_frequency', 'urinary_urgency'],
+        'RP-C-JOINT-SWELLING' => ['limb_pain', 'limb_swelling', 'limited_movement'],
+        'RP-C-SKIN-INFECTION' => ['fever', 'chills', 'limb_pain', 'limb_swelling', 'skin_cut', 'bleeding_stopped', 'skin_lump', 'animal_bite'],
+        'RP-C-DEEP-WOUND' => ['skin_cut', 'finger_cut', 'separated_wound_edges', 'bleeding_stopped', 'limb_injury', 'limb_pain', 'limb_swelling', 'limited_movement'],
+        'RP-C-WOUND-REPAIR' => ['skin_cut', 'finger_cut', 'bleeding_stopped', 'limb_injury', 'limb_pain'],
+        'RP-C-FACE-CUT' => ['skin_cut', 'head_injury', 'bleeding_stopped'],
+        'RP-C-TORSO-INJURY' => ['torso_injury', 'back_pain'],
+        'RP-C-SORE-THROAT-FEVER' => ['scratchy_throat', 'fever', 'runny_nose', 'cough', 'general_weakness'],
+        'RP-C-MINOR-CUT' => ['skin_cut', 'finger_cut', 'bleeding_stopped', 'limb_injury'],
+        'RP-C-BRUISE' => ['limb_injury'],
+        'RP-C-SKIN-LUMP' => ['skin_lump'],
+        'RP-C-MINOR-BURN' => ['burn_injury'],
+        'RP-C-ANIMAL-BITE' => ['animal_bite', 'skin_cut', 'bleeding_stopped', 'limb_pain', 'limb_swelling'],
+        'RP-C-SORE-THROAT' => ['scratchy_throat', 'runny_nose', 'sneezing', 'cough'],
+        'RP-C-BACK-STRAIN' => ['back_pain'],
     ];
 
     /** A profile that accounts for a general concept also accounts for its more specific forms. */
@@ -50,10 +68,18 @@ final class ResearchEsiRuleCatalog
         'vomiting' => ['repeated_vomiting'],
     ];
 
-    /** Additional reported symptoms that must be accounted for by a matched C profile. */
+    /**
+     * Additional reported symptoms that must be accounted for by a matched C profile.
+     * Minor accompanying findings (bruising, skin dryness or redness, stiffness, warmth, congestion, bloating,
+     * dry mouth, tenderness) are deliberately absent: they never add a resource, so they cannot block a profile.
+     */
     public const RESOURCE_EXTRA_SYMPTOMS = ['headache', 'back_pain', 'flank_pain', 'vaginal_discharge', 'generalized_rash', 'numbness', 'eye_pain',
         'ongoing_wound_bleeding', 'burn_injury', 'nosebleed', 'testicular_pain', 'vision_loss', 'eye_injury', 'cannot_open_eye', 'stiff_neck',
-        'neck_pain', 'cold_pale_limb', 'memory_loss_of_event', 'loss_of_consciousness', 'heavy_vaginal_bleeding', 'left_lower_abdominal_pain', 'chemical_in_eye'];
+        'neck_pain', 'cold_pale_limb', 'memory_loss_of_event', 'loss_of_consciousness', 'heavy_vaginal_bleeding', 'left_lower_abdominal_pain', 'chemical_in_eye',
+        'chest_discomfort', 'chest_pressure', 'skin_lump', 'animal_bite', 'torso_injury', 'blood_in_urine', 'vaginal_spotting', 'palpitations', 'limited_movement'];
+
+    /** Reported, or uncertain with quoted evidence, these block decision point C unless a matched profile accounts for them. */
+    public const C_UNCERTAINTY_BLOCKERS = ['unmapped_symptom', 'head_injury'];
 
     /** A specific report conflicting with an explicit denial of its general concept. */
     public const SPECIFIC_GENERAL_CONFLICTS = [['breathing_without_help', 'breathing'], ['chest_pressure', 'chest_discomfort'],
@@ -74,8 +100,10 @@ final class ResearchEsiRuleCatalog
     public static function decisionChecks(): array
     {
         return ['a_danger_signals' => self::A_SIGNALS, 'b_danger_signals' => self::B_SIGNALS,
-            'b_signal_exemption' => ['severe_pain is not blocking when limb_injury is reported'],
-            'c_blocking_when_reported_or_unknown_with_evidence' => ['unmapped_symptom', 'head_injury'],
+            'b_signal_exemption' => ['severe_pain is not blocking when limb_injury is reported',
+                'chest_discomfort and chest_pressure are not blocking when both cough and fever are reported'],
+            'c_blocking_when_reported_or_unknown_with_evidence' => self::C_UNCERTAINTY_BLOCKERS,
+            'c_blocking_exception' => 'unmapped_symptom always blocks; head_injury blocks unless a matched profile in c_accounted_by_profile accounts for it',
             'c_blocking_combination' => ['pregnancy reported with abdominal_pain or burning_urination'],
             'c_symptoms_needing_coverage' => self::resourceSymptoms(), 'c_accounted_by_profile' => self::RESOURCE_ACCOUNTED,
             'c_accounting_includes_specific_forms' => self::SPECIFIC_FORMS,
@@ -166,6 +194,10 @@ final class ResearchEsiRuleCatalog
                 ['throat_tightness' => $r, 'lip_or_tongue_swelling' => $r, 'breathing_difficulty' => $r, 'generalized_rash' => $r],
             ], [], 'ESI v4 Ch. 2, p. 11; ESI v5 Ch. 3, p. 9', 'Allergic-type exposure and symptoms with reported collapse or blue colour.',
                 basis: 'v4 lists "anaphylactic shock" and v5 lists "anaphylaxis" as ESI 1 examples. Collapse or blue colour is required because v4 triages throat tightening after an exposure without collapse as ESI 2 (RP-B-ALLERGY); the editions differ there.'),
+            $this->rule('RP-A-RESPIRATORY-DISTRESS', 'A', ['breathing_difficulty' => $r], [
+                ['blue_colour' => $r, 'gasping_or_noisy_breathing' => $r],
+            ], [], 'Chapter 2, pp. 9–11; respiratory-distress adaptation', 'Difficulty breathing with reported blue colour or gasping.'),
+            $this->rule('RP-A-CHOKING', 'A', ['choking' => $r], [], [], 'Chapter 2, pp. 9–11; airway-obstruction adaptation', 'Reported object or food stuck in the throat with inability to breathe, speak or cough.'),
             $this->rule('RP-B-CHEST', 'B', ['chest_discomfort' => $r], [
                 ['pain_radiates_left_arm' => $r, 'sweating' => $r, 'breathing_difficulty' => $r, 'nausea' => $r],
             ], [], 'Chapter 3, pp. 18–19', 'Chest discomfort with an associated concerning report.'),
@@ -180,9 +212,9 @@ final class ResearchEsiRuleCatalog
             ], [], 'Chapter 3, p. 20; adaptation of motor-deficit high risk', 'Back pain with bilateral weakness and a reported sensory or urinary change.'),
             $this->rule('RP-B-HEADACHE', 'B', ['sudden_onset' => $r, 'worst_ever_headache' => $r], [], [], 'Chapter 3, p. 20', 'Sudden worst-ever headache.'),
             $this->rule('RP-B-ALLERGY', 'B', ['allergen_exposure' => $r], [
-                ['throat_tightness' => $r, 'lip_or_tongue_swelling' => $r],
+                ['throat_tightness' => $r, 'lip_or_tongue_swelling' => $r, 'generalized_rash' => $r],
                 ['throat_tightness' => $r, 'breathing_difficulty' => $r, 'swallowing_difficulty' => $r],
-            ], [], 'Chapter 3, pp. 18–19', 'Exposure with reported throat, breathing or swallowing symptoms.'),
+            ], [], 'Chapter 3, pp. 18–19', 'Exposure with reported throat, lip, tongue or widespread skin symptoms and throat, breathing or swallowing symptoms.'),
             $this->rule('RP-B-EYE', 'B', ['eye_pain' => $r, 'vision_change' => $r, 'sudden_onset' => $r], [], [], 'Chapter 3, p. 21, ophthalmological presentations', 'New painful visual disturbance.'),
             $this->rule('RP-B-LEG-BREATHING', 'B', ['one_sided_lower_leg_swelling' => $r, 'breathing_difficulty' => $r], [], [], 'Chapter 3, pp. 19 and 22, respiratory high risk; symptom-cluster adaptation', 'One-sided leg swelling with reported breathlessness.'),
             $this->rule('RP-B-CHEMOTHERAPY', 'B', ['current_chemotherapy' => $r, 'fever' => $r], [], [], 'Chapter 3, p. 20', 'Reported fever during chemotherapy.'),
@@ -271,6 +303,13 @@ final class ResearchEsiRuleCatalog
                 basis: 'Both editions: high-risk orthopedic injuries include "any extremity injury with compromised neurovascular function." Reported numbness replaces a neurovascular examination.'),
             $this->rule('RP-B-AMPUTATION', 'B', ['amputation' => $r], [], [], 'ESI v4 Ch. 3, pp. 21–22; ESI v5 Ch. 4, p. 15', 'Reported partial or complete amputation.',
                 basis: 'Both editions: high-risk injuries include "partial or complete amputations."'),
+            $this->rule('RP-B-SEVERE-PAIN-DISTRESS', 'B', [], [['severe_pain' => $r, 'severe_distress' => $r]], [], 'Chapter 3, decision point B, severe pain or distress; researcher adaptation',
+                'Explicitly described severe pain or severe distress, outside an isolated limb injury.', none: ['limb_injury']),
+            $this->rule('RP-B-FAINTING', 'B', ['fainting' => $r], [], [], 'Chapter 3, pp. 18–20; researcher adaptation', 'Reported fainting or near-fainting with the current complaint.'),
+            $this->rule('RP-B-GI-BLEEDING', 'B', [], [
+                ['bloody_stool' => $r, 'vomiting_blood' => $r],
+                ['dizziness' => $r, 'fainting' => $r, 'general_weakness' => $r, 'pallor' => $r],
+            ], [], 'Chapter 3, p. 19; researcher adaptation', 'Blood in stool or vomit with reported dizziness, fainting, weakness or paleness.'),
 
             $this->rule('RP-C-ABDOMEN', 'C', ['abdominal_pain' => $r], [
                 ['nausea' => $r, 'loss_of_appetite' => $r, 'vomiting' => $r],
@@ -282,7 +321,7 @@ final class ResearchEsiRuleCatalog
             $this->rule('RP-C-DIARRHEA', 'C', ['diarrhea' => $r, 'general_weakness' => $r, 'orthostatic_lightheadedness' => $r], [], ['laboratory', 'iv_hydration'], 'Chapter 4, pp. 29–31; patient-report adaptation', 'Diarrhea with weakness and lightheadedness on standing.', 'Hypothesis: laboratory investigation and IV hydration. No diagnosis of dehydration is inferred.'),
             $this->rule('RP-C-LEG-SWELLING', 'C', ['one_sided_lower_leg_pain' => $r, 'one_sided_lower_leg_swelling' => $r], [], ['laboratory', 'imaging'], 'Chapter 4, Table 4-2, p. 33; broader leg-profile adaptation', 'One-sided leg pain and swelling.', 'Hypothesis: laboratory investigation plus vascular imaging.'),
             $this->rule('RP-C-LIMB-INJURY', 'C', ['limb_injury' => $r, 'limb_pain' => $r], [
-                ['limb_swelling' => $r, 'preserved_limb_function' => $r, 'pain_on_weight_bearing' => $r],
+                ['limb_swelling' => $r, 'preserved_limb_function' => $r, 'pain_on_weight_bearing' => $r, 'limited_movement' => $r, 'bruising' => $r],
             ], ['imaging'], 'Chapter 4, pp. 31–32, ankle example; broader limb adaptation', 'Localized limb injury profile.', 'Hypothesis: one imaging resource; supports and examination do not add resources.'),
             $this->rule('RP-C-URINARY', 'C', ['burning_urination' => $r, 'urinary_frequency' => $r, 'fever' => $a], [], ['laboratory'], 'Chapter 4, Table 4-2, p. 33; broader urinary adaptation', 'Urinary burning and frequency with an explicit fever denial.', 'Hypothesis: urine laboratory testing as one resource group; pregnancy and clinical findings remain unassessed.'),
             $this->rule('RP-C-CUT', 'C', ['skin_cut' => $r, 'separated_wound_edges' => $r, 'bleeding_stopped' => $r], [], ['simple_procedure'], 'Chapter 4, pp. 30–32', 'Reported cut with separated edges after bleeding stopped.', 'Hypothesis: one repair procedure; need for repair is not a patient-established fact.'),
@@ -290,17 +329,63 @@ final class ResearchEsiRuleCatalog
             $this->rule('RP-C-REFILL', 'C', ['routine_prescription_refill' => $r], [
                 ['feels_well' => $r, 'no_acute_symptoms' => $r],
             ], [], 'Chapter 2, Table 2-4, p. 14; Chapter 4 resource exclusions', 'Routine refill with an explicit report of feeling well or no acute symptoms.', 'Hypothesis: examination and prescription only, neither an ESI resource.'),
-            $this->rule('RP-C-LOCAL-SKIN', 'C', ['localized_itchy_skin' => $r], [
-                ['feels_well' => $r, 'additional_symptoms' => $a, 'breathing_difficulty' => $a],
-            ], [], 'Chapter 2, Table 2-4, p. 14; skin-example adaptation', 'Limited itchy skin complaint with supporting context.', 'Hypothesis: examination and oral/topical prescription only; no counted resources.'),
+            $this->rule('RP-C-LOCAL-SKIN', 'C', [], [['localized_itchy_skin' => $r, 'skin_dryness' => $r]], [], 'Chapter 2, Table 2-4, p. 14; skin-example adaptation',
+                'Limited itchy or dry skin complaint without fever or a widespread rash.', 'Hypothesis: examination and oral/topical prescription only; no counted resources.',
+                none: ['fever', 'generalized_rash']),
             $this->rule('RP-C-IMPROVING-URI', 'C', ['cough' => $r, 'symptoms_improving' => $r, 'usual_activities_preserved' => $r, 'fever' => $a], [
                 ['runny_nose' => $r, 'scratchy_throat' => $r],
                 ['breathing_without_help' => $r, 'breathing_difficulty' => $a],
             ], [], 'Chapter 4, pp. 29–31; researcher zero-resource hypothesis', 'Improving upper-respiratory reports with preserved daily function and explicit fever denial.', 'Hypothesis: history/examination and advice only. Persistent or worsening cough does not match this profile.'),
-            $this->rule('RP-C-NASAL', 'C', ['runny_nose' => $r, 'sneezing' => $r, 'fever' => $a, 'breathing_difficulty' => $a, 'eating_drinking_normally' => $r], [], [], 'Chapter 4, pp. 29–31; researcher zero-resource hypothesis', 'Nasal symptoms with explicit fever/breathing denials and preserved intake.', 'Hypothesis: examination and oral prescription only; no counted resources.'),
+            $this->rule('RP-C-NASAL', 'C', [], [['runny_nose' => $r, 'sneezing' => $r, 'watery_eyes' => $r, 'nasal_congestion' => $r]], [], 'Chapter 4, pp. 29–31; researcher zero-resource hypothesis',
+                'Nasal or eye-watering symptoms without reported fever.', 'Hypothesis: examination and oral prescription only; no counted resources.', none: ['fever']),
             $this->rule('RP-C-EYE-PARTICLE', 'C', ['eye_foreign_particle' => $r], [], ['simple_procedure'], 'ESI v4 Ch. 4, p. 31', 'Dust or a small particle in the eye.',
                 'Eye irrigation counts as one resource; the eye examination does not.', none: ['chemical_in_eye', 'eye_injury', 'vision_loss'],
                 basis: '"If the eye problem was due to dust particles in the eye ... the eye irrigation would count as a resource and the patient would meet ESI level-4 criteria."'),
+
+            /** Version 2.1.0 profiles: researcher hypotheses added after the first TEST run; see docs/research-prototype-rules.md. */
+            $this->rule('RP-C-GI-FLUID-LOSS', 'C', [], [
+                ['diarrhea' => $r, 'repeated_vomiting' => $r, 'vomiting' => $r],
+                ['general_weakness' => $r, 'dry_mouth' => $r, 'dizziness' => $r, 'orthostatic_lightheadedness' => $r, 'poor_oral_intake' => $r],
+            ], ['laboratory', 'iv_hydration'], 'Chapter 4, Table 4-1, p. 30; fluid-loss adaptation', 'Vomiting or diarrhea with weakness, dry mouth, dizziness or poor intake.',
+                'Hypothesis: laboratory investigation and IV hydration. No diagnosis of dehydration is inferred.'),
+            $this->rule('RP-C-URINARY-FEVER', 'C', ['burning_urination' => $r, 'fever' => $r], [], ['laboratory'], 'Chapter 4, Table 4-2, p. 33; urinary adaptation',
+                'Burning urination with subjective fever, without chills or back or flank pain.', 'Hypothesis: urine laboratory testing as one resource group.'),
+            $this->rule('RP-C-BLOOD-IN-URINE', 'C', ['blood_in_urine' => $r], [], ['laboratory', 'imaging'], 'Chapter 4, Table 4-2, p. 33; urinary adaptation',
+                'Reported blood in the urine.', 'Hypothesis: urine laboratory testing plus urinary-tract imaging.'),
+            $this->rule('RP-C-JOINT-SWELLING', 'C', ['limb_pain' => $r, 'limb_swelling' => $r], [], ['laboratory', 'imaging'], 'Chapter 4, pp. 29–33; joint adaptation',
+                'Painful swollen limb or joint without a reported injury.', 'Hypothesis: laboratory investigation plus imaging.', none: ['limb_injury']),
+            $this->rule('RP-C-SKIN-INFECTION', 'C', ['fever' => $r], [
+                ['skin_redness' => $r, 'wound_redness' => $r, 'localized_warmth' => $r],
+            ], ['laboratory', 'iv_medication'], 'Chapter 4, Table 4-1, p. 30; skin-infection adaptation',
+                'Local skin redness or warmth with subjective fever, without a reported condition that weakens immunity.', 'Hypothesis: laboratory investigation plus IV medication.',
+                none: ['diabetes_history', 'organ_transplant', 'current_chemotherapy', 'dialysis_patient']),
+            $this->rule('RP-C-DEEP-WOUND', 'C', ['skin_cut' => $r, 'deep_wound' => $r], [], ['simple_procedure', 'imaging'], 'Chapter 4, Table 4-1, p. 30; wound adaptation',
+                'Cut the patient describes as deep.', 'Hypothesis: one repair procedure plus imaging for deeper injury or a retained object.'),
+            $this->rule('RP-C-WOUND-REPAIR', 'C', ['skin_cut' => $r, 'bleeding_stopped' => $r], [], ['simple_procedure'], 'Chapter 4, Table 4-1, p. 30; wound adaptation',
+                'Cut with bleeding stopped, not described as minor.', 'Hypothesis: one repair procedure; need for repair is not a patient-established fact.', none: ['minor_wound']),
+            $this->rule('RP-C-FACE-CUT', 'C', ['skin_cut' => $r, 'head_injury' => $r], [], ['simple_procedure'], 'Chapter 4, Table 4-1, p. 30; wound adaptation',
+                'Cut on the head or face without a reported head-injury red flag.', 'Hypothesis: one repair procedure. Head-injury red flags are matched earlier at decision point B.', none: ['minor_wound']),
+            $this->rule('RP-C-TORSO-INJURY', 'C', ['torso_injury' => $r], [], ['imaging'], 'Chapter 4, pp. 31–32; injury adaptation',
+                'Blow or fall injury to the ribs, chest wall, back or hip.', 'Hypothesis: one imaging resource.'),
+            $this->rule('RP-C-SORE-THROAT-FEVER', 'C', ['scratchy_throat' => $r, 'fever' => $r], [], ['laboratory'], 'Chapter 4, pp. 29–31; throat adaptation',
+                'Sore throat with subjective fever.', 'Hypothesis: one laboratory test.'),
+            $this->rule('RP-C-MINOR-CUT', 'C', ['skin_cut' => $r, 'minor_wound' => $r], [], [], 'ESI v4 Ch. 4, Table 4-1, p. 30', 'Cut the patient describes as small, minor or superficial.',
+                'Hypothesis: simple wound care only, which is not a counted resource.', basis: 'Table 4-1 lists simple wound care (dressings, recheck) among items that are not resources.'),
+            $this->rule('RP-C-BRUISE', 'C', ['bruising' => $r], [], [], 'Chapter 4, pp. 29–31; researcher zero-resource hypothesis', 'Bruise without pain or swelling requiring a resource profile.',
+                'Hypothesis: examination only; no counted resources.'),
+            $this->rule('RP-C-SKIN-LUMP', 'C', ['skin_lump' => $r], [], [], 'Chapter 4, pp. 29–31; researcher zero-resource hypothesis', 'Small skin lump, boil or skin tag without fever.',
+                'Hypothesis: examination and oral/topical prescription only; no counted resources.', none: ['fever']),
+            $this->rule('RP-C-MINOR-BURN', 'C', ['burn_injury' => $r], [], [], 'ESI v4 Ch. 4, Table 4-1, p. 30', 'Burn without reported blistering or deeper skin damage.',
+                'Hypothesis: simple burn care only, which is not a counted resource.', none: ['burn_blistering'],
+                basis: 'Table 4-1 lists simple wound care (dressings, recheck) among items that are not resources. Blistering burns are matched earlier by RP-B-BURN-BLISTERING.'),
+            $this->rule('RP-C-ANIMAL-BITE', 'C', ['animal_bite' => $r], [], [], 'ESI v4 Ch. 4, Table 4-1, p. 30', 'Animal bite or scratch without fever or a gaping or deep wound.',
+                'Hypothesis: simple wound care and tetanus immunization only, which are not counted resources.', none: ['fever', 'separated_wound_edges', 'deep_wound'],
+                basis: 'Table 4-1 lists simple wound care and tetanus immunization among items that are not resources. Rabies prophylaxis by injection would count as a resource and is not assumed.'),
+            $this->rule('RP-C-SORE-THROAT', 'C', ['scratchy_throat' => $r], [], [], 'Chapter 4, pp. 29–31; researcher zero-resource hypothesis', 'Sore throat without reported fever.',
+                'Hypothesis: examination and oral prescription only; no counted resources.', none: ['fever']),
+            $this->rule('RP-C-BACK-STRAIN', 'C', ['back_pain' => $r], [], [], 'Chapter 4, pp. 29–31; researcher zero-resource hypothesis', 'Back pain without fever, injury, or urinary or leg symptoms.',
+                'Hypothesis: examination and oral prescription only; no counted resources.',
+                none: ['fever', 'flank_pain', 'torso_injury', 'bilateral_leg_weakness', 'numbness', 'difficulty_urinating', 'blood_in_urine', 'burning_urination']),
         ];
     }
 

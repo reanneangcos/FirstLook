@@ -171,7 +171,7 @@ final class NormalizedPatientFacts
 
     public function instructions(): string
     {
-        $version = self::researchEnabled() ? 'normalization-v4-research' : 'normalization-v3';
+        $version = self::researchEnabled() ? 'normalization-v5-research' : 'normalization-v3';
 
         return file_get_contents(resource_path('prompts/'.$version.'.txt'))."\n"
             .json_encode(self::definitions(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);

@@ -26,7 +26,7 @@ final class StudyProtocol
 
     public function promptVersion(): string
     {
-        return $this->isResearch() ? 'screening-study-v8-research' : self::PROMPT;
+        return $this->isResearch() ? 'screening-study-v9-research' : self::PROMPT;
     }
 
     public function catalog(): ProvisionalEsiRuleCatalog|ResearchEsiRuleCatalog
