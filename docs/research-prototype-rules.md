@@ -4,7 +4,7 @@ Updated 28 October 2026. Active mode: `research_prototype`. Rule version `resear
 
 ## What is implemented
 
-Method B has **one deterministic engine with input checks and A/B/C/D stages**. Its 70 profiles comprise nine A profiles, forty-seven B profiles and fourteen C profiles. The original 32 were developed on the DEV split; the 38 added in version 2.0.0 were written from handbook categories, each with a quoted handbook basis, without reference to TEST inputs. It accepts the existing 15 patient fields through evidence-linked, language-independent concepts. It has no per-language phrase lists, case-ID lookups, reference-label lookup, second LLM decision or fallback ESI 3.
+Method B has **one deterministic engine with input checks and A/B/C/D stages**. Its 92 profiles comprise eleven A profiles, fifty B profiles and thirty-one C profiles. The original 32 were developed on the DEV split; the 38 added in version 2.0.0 were written from handbook categories without reference to TEST inputs; the 22 added in version 2.1.0 were written after the first TEST run (see below). It accepts the existing 15 patient fields through evidence-linked, language-independent concepts. It has no per-language phrase lists, case-ID lookups, reference-label lookup, second LLM decision or fallback ESI 3.
 
 The result statuses are `classified` or `needs_review`; execution errors are recorded separately. There is no `unreviewed` result status. The 70-profile version 2.0.0 catalog has a verbal review record (Abigail Rose Gayatin-Sabandal, PHRN, USRN, 27 October 2026, `FIRSTLOOK-REPORTED-VERBAL-2026-10-27-01`) in `config/esi.php` under `research_approval`. Version 2.1.0 (92 profiles) has a verbal approval reported by the team on 28 October 2026 (`FIRSTLOOK-REPORTED-VERBAL-2026-10-28-01`); the written review form is not yet signed. The 2.0.0 record is kept under `research_approval_history`. A record applies only while its `rule_version` matches the catalog; any rule, signal, concept or engine change makes `study:check` block until a new review is recorded. The review covers the rule specification, not measured clinical accuracy. The old 18 approved definitions, their hashes and earlier database results remain intact.
 
@@ -131,7 +131,7 @@ Two original citations were also corrected: `RP-A-CONVULSIONS` now cites v4 Tabl
 
 ### Handbook items deliberately not encoded
 
-These remain Needs Review because the handbooks make the decision depend on vital signs, measurements or nurse judgment that patient reports cannot supply:
+In version 2.0.0 these remained Needs Review because the handbooks make the decision depend on vital signs, measurements or nurse judgment that patient reports cannot supply. Version 2.1.0 later encoded three of them as researcher adaptations: fainting (`RP-B-FAINTING`), blood in vomit or stool with dizziness, fainting, weakness or pallor (`RP-B-GI-BLEEDING`), and sore throat (`RP-C-SORE-THROAT`, `RP-C-SORE-THROAT-FEVER`).
 
 - **Shortness of breath or respiratory distress alone.** Mild-to-moderate distress "should be further evaluated for respiratory rate and pulse oximetry" (v4 p. 21; v5 p. 13), and severe distress can be ESI 1 or 2.
 - **Severe pain rated 7/10 or higher alone.** "Not all patients with a pain score greater than 7 should be triaged as ESI level 2" (v4 p. 26; v5 p. 12). Only the systemic pain causes the handbooks name are encoded.
@@ -173,9 +173,9 @@ Changes, by type:
 
 Most new profiles are researcher hypotheses, not handbook examples; three cite ESI v4 Table 4-1 (simple wound care and tetanus immunization are not resources). On the saved 2.0.0 TEST facts, without new LLM output, the 2.1.0 engine reduces Method B Needs review from 905 to 645 of 1,775 evaluable records, with no undertriage. That replay is an estimate only; the new concepts take effect only in a fresh run.
 
-## Methodology change to disclose
+## Reporting in the thesis
 
-The supplied paper describes reviewed mappings and explicit earlier-decision exclusions. The user's later instruction authorizes a research prototype without those approval gates. This implementation therefore changes that part of the protocol. Before presenting a frozen comparison as the final thesis experiment, describe the positive-danger screening, fixed resource hypotheses, unassessed negatives, and prototype scope accurately. The original paper has not been silently overwritten in this implementation task.
+The thesis describes the positive-danger screening, fixed resource hypotheses, unassessed negatives and prototype scope (Sections 3.9–3.11), and discloses that version 2.1.0 was written after the first TEST run (Sections 3.9 and 3.15).
 
 ## Reproducible testing
 
@@ -188,6 +188,6 @@ docker compose exec -T node npm run build
 
 For paired DEV testing, use `study:dev-baseline ... --paired-pilot --run-id=<new-id>`. Without `--paired-pilot`, the historical DEV command remains Method A only. A saved run cannot resume under changed inputs, prompts or configuration. Do not delete failed attempts or repeat a valid Needs Review response to improve the score.
 
-For the final experiment, the existing `study:freeze`, `study:run --run=1`, `--run=2`, `--run=3`, and `study:score` workflow remains paired. Freeze after development; keep the TEST reference key separate. Report accuracy/F1/undertriage/overtriage on the same common numerical pairs, alongside coverage, abstentions, technical failures and completion-adjusted accuracy over all scheduled inputs. TEST has not been submitted during this implementation task.
+For the final experiment, the existing `study:freeze`, `study:run --run=1`, `--run=2`, `--run=3`, and `study:score` workflow remains paired. Freeze after development; keep the TEST reference key separate. Report accuracy/F1/undertriage/overtriage on the same common numerical pairs, alongside coverage, abstentions, technical failures and completion-adjusted accuracy over all scheduled inputs. Both frozen TEST studies and their scored results are under `storage/app/private/studies/`.
 
 See [the fresh DEV pilot results](research-prototype-dev-results.md) for actual measured outcomes; software test fixtures are not counted as dataset findings.

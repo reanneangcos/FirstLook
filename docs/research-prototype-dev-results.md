@@ -1,6 +1,6 @@
 # FirstLook: completed prototype and DEV findings
 
-> **Historical record (21 October 2026, rule version 1.1.0, 32 profiles, prompt v4).** The frozen experiment uses rule version `research-esi-patient-report-2.0.0` (70 profiles), prompt `screening-study-v8-research` and a 60-second request timeout. The final DEV run on that configuration is reported in Section 3.9 of the thesis and saved under `storage/app/private/studies/research-prototype-2026-10-21/dev-v8-*`.
+> **Historical record (21 October 2026, rule version 1.1.0, 32 profiles, prompt v4).** The first frozen TEST study used rule version `research-esi-patient-report-2.0.0` (70 profiles) and prompt `screening-study-v8-research`; the second used version 2.1.0 (92 profiles) and prompt `screening-study-v9-research`, both with a 60-second request timeout. The final DEV run on the 2.0.0 configuration is reported in Section 3.9 of the thesis and saved under `storage/app/private/studies/research-prototype-2026-10-21/dev-v8-*`.
 
 21 October 2026. **The software is ready for a frozen prototype experiment. TEST has not been run.**
 
