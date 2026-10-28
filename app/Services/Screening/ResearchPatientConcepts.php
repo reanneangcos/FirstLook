@@ -4,7 +4,7 @@ namespace App\Services\Screening;
 
 final class ResearchPatientConcepts
 {
-    public const VERSION = 'patient-concepts-v3-research';
+    public const VERSION = 'patient-concepts-v4-research';
 
     public static function definitions(): array
     {
@@ -51,7 +51,7 @@ final class ResearchPatientConcepts
             'no_acute_symptoms' => 'Explicit scoped statement of no current symptoms; not a missing or unreported symptom field.',
             'runny_nose' => 'Reported runny nose.',
             'sneezing' => 'Reported sneezing.',
-            'scratchy_throat' => 'Reported scratchy or irritated throat.',
+            'scratchy_throat' => 'Reported sore, scratchy or irritated throat.',
             'watery_eyes' => 'Reported watery eyes.',
             'usual_activities_preserved' => 'Explicitly able to carry out usual daily activities.',
             'eating_drinking_normally' => 'Explicitly able to eat or drink normally.',
@@ -100,6 +100,24 @@ final class ResearchPatientConcepts
             'bleeding_disorder' => 'Known low platelets, hemophilia or another clotting disorder explicitly reported as history.',
             'pregnancy_loss' => 'Reported recent miscarriage, stillbirth or other loss of a pregnancy.',
             'unable_to_swallow_saliva' => 'Reported drooling or being unable to swallow one\'s own saliva; not ordinary difficulty swallowing food.',
+            'choking' => 'Reported food or an object stuck in the throat now, with inability to breathe, speak or cough.',
+            'bruising' => 'Reported bruise or bruising of the skin, recent or old.',
+            'skin_dryness' => 'Reported dry, flaky, peeling, scaly or chapped skin, scalp or lips.',
+            'skin_redness' => 'Reported redness of a limited area of skin; not a rash spreading over the body.',
+            'skin_lump' => 'Reported small lump, boil, cyst, pimple or skin tag on or under the skin.',
+            'muscle_stiffness' => 'Reported tightness or stiffness of a muscle or joint.',
+            'limited_movement' => 'Reported difficulty moving, using or putting weight on a body part; not complete inability or paralysis.',
+            'localized_warmth' => 'Reported warmth of a limited area of skin or a joint; not fever.',
+            'nasal_congestion' => 'Reported blocked or stuffy nose.',
+            'bloating' => 'Reported bloating or a feeling of fullness or gas in the belly.',
+            'dry_mouth' => 'Reported dry mouth or unusual thirst.',
+            'vaginal_spotting' => 'Reported light vaginal bleeding or spotting; not heavy bleeding.',
+            'blood_in_urine' => 'Reported blood in the urine or urine that is red, pink or cola-coloured.',
+            'palpitations' => 'Reported pounding, racing, fluttering or irregular heartbeat.',
+            'animal_bite' => 'Reported bite or scratch from an animal.',
+            'torso_injury' => 'Reported recent blow or injury to the ribs, chest wall, back or hip from a fall or impact; not a stab, gunshot or high-energy mechanism.',
+            'minor_wound' => 'Patient explicitly describes the wound as very small, minor, shallow or superficial, such as a paper cut or scrape.',
+            'deep_wound' => 'Patient explicitly describes the wound as deep.',
         ];
     }
 }

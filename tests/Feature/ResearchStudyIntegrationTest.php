@@ -6,6 +6,7 @@ use App\Models\ScreeningSession;
 use App\Services\Screening\PatientFields;
 use App\Services\Screening\ScreeningService;
 use App\Services\Screening\StudyProtocol;
+use App\Services\TriageRules\ResearchEsiRuleCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\MockScreening;
@@ -19,6 +20,7 @@ class ResearchStudyIntegrationTest extends TestCase
     {
         parent::setUp();
         config(['esi.mode' => 'research_prototype', 'triage.api_key' => 'mock-only', 'triage.model' => 'gpt-6-luna']);
+        config(['esi.research_approval.rule_version' => (new ResearchEsiRuleCatalog)->version()]);
         Http::preventStrayRequests();
     }
 
@@ -28,7 +30,7 @@ class ResearchStudyIntegrationTest extends TestCase
         Http::fake(['api.openai.com/*' => Http::response(MockScreening::envelope($output))]);
         $protocol = app(StudyProtocol::class);
         $this->assertTrue($protocol->readiness()['ready']);
-        $this->assertSame(70, $protocol->readiness()['approved_rule_count']);
+        $this->assertSame(92, $protocol->readiness()['approved_rule_count']);
         $path = tempnam(sys_get_temp_dir(), 'research-pilot-');
         $manifest = ['split' => 'DEV', 'source_sha256' => str_repeat('c', 64), 'cases' => [
             ['split' => 'DEV', 'dataset_case_id' => 'FIXTURE-RESEARCH', 'variant_id' => 'FIXTURE-R1', 'language' => 'English', 'patient' => $input['patient']],
@@ -45,8 +47,8 @@ class ResearchStudyIntegrationTest extends TestCase
             $this->assertSame($output, $saved->parsed_output);
             $this->assertSame($output['normalized_facts'], $saved->method_b_input['normalized_facts']);
             $this->assertSame(['extracted_facts', 'normalized_facts', 'clinical_assessment'], array_keys($saved->method_b_input));
-            $this->assertSame('screening-study-v8-research', $saved->prompt_version);
-            $this->assertSame('patient-concepts-v3-research', $saved->request_settings['normalization_version']);
+            $this->assertSame('screening-study-v9-research', $saved->prompt_version);
+            $this->assertSame('patient-concepts-v4-research', $saved->request_settings['normalization_version']);
             $this->assertSame('nurse_reviewed_research_adaptation', $saved->request_settings['criteria_status']);
             $this->assertSame(3, $saved->patientVisit->messages()->count());
             $history = $saved->patientVisit->messages()->where('source', 'model')->sole()->content;

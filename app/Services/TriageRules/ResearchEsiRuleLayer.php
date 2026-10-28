@@ -71,6 +71,10 @@ final class ResearchEsiRuleLayer implements RuleLayer
                 if ($point === 'B' && $this->reported($concepts, 'limb_injury')) {
                     $blocking = array_values(array_diff($blocking, ['severe_pain']));
                 }
+                /** v4 p. 19 and Table 3-1, p. 23: chest pain with cough and fever is not an ESI 2 presentation, so it waits for resource prediction. */
+                if ($point === 'B' && $this->reported($concepts, 'cough') && $this->reported($concepts, 'fever')) {
+                    $blocking = array_values(array_diff($blocking, ['chest_discomfort']));
+                }
                 if ($blocking !== []) {
                     return $this->result($trace, [], null, $point, 'A reported or explicitly uncertain danger signal lacks a complete supported profile: '.implode(', ', $blocking).'.', $concepts);
                 }
@@ -163,15 +167,6 @@ final class ResearchEsiRuleLayer implements RuleLayer
     private function unsupportedForResources(array $concepts, array $matches): array
     {
         $blocked = [];
-        /** Like danger signals, an unknown state blocks only when it carries quoted evidence; an empty unknown is unmentioned. */
-        foreach (['unmapped_symptom', 'head_injury'] as $name) {
-            if ($this->reported($concepts, $name) || (($concepts[$name]['state'] ?? null) === 'unknown' && ($concepts[$name]['evidence'] ?? []) !== [])) {
-                $blocked[] = $name;
-            }
-        }
-        if ($this->reported($concepts, 'pregnancy') && ($this->reported($concepts, 'abdominal_pain') || $this->reported($concepts, 'burning_urination'))) {
-            $blocked[] = 'pregnancy_with_abdominal_or_urinary_symptoms';
-        }
         $byRule = ResearchEsiRuleCatalog::RESOURCE_ACCOUNTED;
         $symptoms = ResearchEsiRuleCatalog::resourceSymptoms();
         $accounted = [];
@@ -179,6 +174,16 @@ final class ResearchEsiRuleLayer implements RuleLayer
             foreach ($byRule[$match['rule_id']] ?? [] as $concept) {
                 $accounted = [...$accounted, $concept, ...(ResearchEsiRuleCatalog::SPECIFIC_FORMS[$concept] ?? [])];
             }
+        }
+        /** Like danger signals, an unknown state blocks only when it carries quoted evidence; an empty unknown is unmentioned. */
+        foreach (ResearchEsiRuleCatalog::C_UNCERTAINTY_BLOCKERS as $name) {
+            if (($this->reported($concepts, $name) || (($concepts[$name]['state'] ?? null) === 'unknown' && ($concepts[$name]['evidence'] ?? []) !== []))
+                && ! in_array($name, $accounted, true)) {
+                $blocked[] = $name;
+            }
+        }
+        if ($this->reported($concepts, 'pregnancy') && ($this->reported($concepts, 'abdominal_pain') || $this->reported($concepts, 'burning_urination'))) {
+            $blocked[] = 'pregnancy_with_abdominal_or_urinary_symptoms';
         }
         foreach ($symptoms as $name) {
             if ($this->reported($concepts, $name) && ! in_array($name, $accounted, true)) {

@@ -16,6 +16,8 @@ class ResearchEsiRuleLayerTest extends TestCase
     {
         parent::setUp();
         config(['esi.mode' => 'research_prototype']);
+        /** Simulates a review record for the current catalog; the shipped record covers only the version the nurse reviewed. */
+        config(['esi.research_approval.rule_version' => (new ResearchEsiRuleCatalog)->version()]);
     }
 
     #[DataProvider('presentations')]
@@ -46,7 +48,7 @@ class ResearchEsiRuleLayerTest extends TestCase
         $this->assertTrue(app(StudyProtocol::class)->readiness()['ready']);
         $this->assertSame('nurse_reviewed_research_adaptation', app(StudyProtocol::class)->criteriaStatus());
 
-        config(['esi.research_approval.rule_version' => 'research-esi-patient-report-2.0.0+0000000000000000']);
+        config(['esi.research_approval.rule_version' => 'research-esi-patient-report-2.0.0+772a55351e054556']);
         $this->assertNull($catalog->approval());
         $this->assertFalse(array_any($catalog->rules(), fn (array $rule): bool => $rule['approved']));
         $this->assertSame('not_clinically_validated', $catalog->rules()[0]['reviewer_approval']['status']);
@@ -92,6 +94,31 @@ class ResearchEsiRuleLayerTest extends TestCase
             'nosebleed on warfarin' => ['Nosebleed; I take warfarin.', ['nosebleed' => 'reported', 'anticoagulant_use' => 'reported'], 2, 'RP-B-NOSEBLEED-BLEEDING-RISK'],
             'transplant fever' => ['Kidney transplant last year and now a fever.', ['organ_transplant' => 'reported', 'fever' => 'reported'], 2, 'RP-B-TRANSPLANT-FEVER'],
             'dust in eye' => ['Dust blew into my eye.', ['eye_foreign_particle' => 'reported'], 4, 'RP-C-EYE-PARTICLE'],
+            'blue lips and breathless' => ['I cannot breathe and my lips look blue.', ['breathing_difficulty' => 'reported', 'blue_colour' => 'reported'], 1, 'RP-A-RESPIRATORY-DISTRESS'],
+            'choking' => ['Food is stuck in his throat and he cannot breathe.', ['choking' => 'reported'], 1, 'RP-A-CHOKING'],
+            'severe distress' => ['I am in severe distress and unsafe at home.', ['severe_distress' => 'reported'], 2, 'RP-B-SEVERE-PAIN-DISTRESS'],
+            'fainting' => ['I fainted twice today.', ['fainting' => 'reported'], 2, 'RP-B-FAINTING'],
+            'black stool and dizzy' => ['Black stool and I feel dizzy.', ['bloody_stool' => 'reported', 'dizziness' => 'reported'], 2, 'RP-B-GI-BLEEDING'],
+            'vomiting and dry mouth' => ['Vomiting and diarrhea, dry mouth and weak.', ['vomiting' => 'reported', 'diarrhea' => 'reported', 'dry_mouth' => 'reported', 'general_weakness' => 'reported'], 3, 'RP-C-GI-FLUID-LOSS'],
+            'blood in urine' => ['Blood in my urine and back pain.', ['blood_in_urine' => 'reported', 'back_pain' => 'reported'], 3, 'RP-C-BLOOD-IN-URINE'],
+            'swollen joint' => ['My knee is painful, swollen and warm.', ['limb_pain' => 'reported', 'limb_swelling' => 'reported', 'localized_warmth' => 'reported'], 3, 'RP-C-JOINT-SWELLING'],
+            'red leg with fever' => ['My leg is red and warm and I feel feverish.', ['skin_redness' => 'reported', 'localized_warmth' => 'reported', 'fever' => 'reported'], 3, 'RP-C-SKIN-INFECTION'],
+            'deep cut' => ['Deep cut on my hand from glass.', ['skin_cut' => 'reported', 'deep_wound' => 'reported'], 3, 'RP-C-DEEP-WOUND'],
+            'cut needing care' => ['Cut on my palm; bleeding stopped.', ['skin_cut' => 'reported', 'bleeding_stopped' => 'reported'], 4, 'RP-C-WOUND-REPAIR'],
+            'eyebrow cut' => ['Cut above my eyebrow after bumping a door.', ['skin_cut' => 'reported', 'head_injury' => 'reported'], 4, 'RP-C-FACE-CUT'],
+            'sore ribs' => ['Fell and hurt my ribs; they are bruised.', ['torso_injury' => 'reported', 'bruising' => 'reported'], 4, 'RP-C-TORSO-INJURY'],
+            'urinary with fever' => ['Burning urination and a fever.', ['burning_urination' => 'reported', 'fever' => 'reported'], 4, 'RP-C-URINARY-FEVER'],
+            'sore throat with fever' => ['Sore throat and fever.', ['scratchy_throat' => 'reported', 'fever' => 'reported'], 4, 'RP-C-SORE-THROAT-FEVER'],
+            'injury with bruise' => ['Twisted ankle, painful and bruised.', ['limb_injury' => 'reported', 'limb_pain' => 'reported', 'bruising' => 'reported'], 4, 'RP-C-LIMB-INJURY'],
+            'paper cut' => ['A very small paper cut.', ['skin_cut' => 'reported', 'minor_wound' => 'reported'], 5, 'RP-C-MINOR-CUT'],
+            'bruise' => ['Small bruise on my arm, a bit tender.', ['bruising' => 'reported', 'tenderness' => 'reported'], 5, 'RP-C-BRUISE'],
+            'boil' => ['Small boil on my forearm.', ['skin_lump' => 'reported'], 5, 'RP-C-SKIN-LUMP'],
+            'sunburn' => ['Mild sunburn, skin is red.', ['burn_injury' => 'reported', 'skin_redness' => 'reported'], 5, 'RP-C-MINOR-BURN'],
+            'cat bite' => ['A cat bit my hand; it is a bit swollen.', ['animal_bite' => 'reported', 'limb_swelling' => 'reported'], 5, 'RP-C-ANIMAL-BITE'],
+            'sore throat' => ['Mild sore throat and a stuffy nose.', ['scratchy_throat' => 'reported', 'nasal_congestion' => 'reported'], 5, 'RP-C-SORE-THROAT'],
+            'back strain' => ['Lower back ache after sitting; muscles feel tight.', ['back_pain' => 'reported', 'muscle_stiffness' => 'reported'], 5, 'RP-C-BACK-STRAIN'],
+            'dry itchy skin' => ['Dry itchy skin with peeling.', ['localized_itchy_skin' => 'reported', 'skin_dryness' => 'reported'], 5, 'RP-C-LOCAL-SKIN'],
+            'watery eyes and sneezing' => ['Watery eyes and sneezing.', ['watery_eyes' => 'reported', 'sneezing' => 'reported'], 5, 'RP-C-NASAL'],
         ];
     }
 
@@ -126,14 +153,14 @@ class ResearchEsiRuleLayerTest extends TestCase
 
     public function test_resource_profile_requires_its_explicit_negative_and_preserves_distinct_states(): void
     {
-        foreach (['missing', 'unknown', 'not_applicable', 'reported'] as $state) {
+        foreach (['missing' => null, 'unknown' => null, 'not_applicable' => null, 'reported' => 4] as $state => $priority) {
             $states = ['burning_urination' => 'reported', 'urinary_frequency' => 'reported'];
             if ($state !== 'missing') {
                 $states['fever'] = $state;
             }
             [$facts, $concepts] = $this->facts('Urinary symptoms; fever status recorded separately.', $states);
             $result = app(ResearchEsiRuleLayer::class)->evaluate($facts, [], $concepts);
-            $this->assertNull($result['priority'], $state);
+            $this->assertSame($priority, $result['priority'], $state);
             $rule = array_values(array_filter($result['trace'], fn (array $r): bool => $r['rule_id'] === 'RP-C-URINARY'))[0];
             $observation = array_values(array_filter($rule['observations'], fn (array $o): bool => $o['concept'] === 'fever'))[0];
             $this->assertSame($state, $observation['state']);
@@ -180,8 +207,8 @@ class ResearchEsiRuleLayerTest extends TestCase
     public function test_catalog_has_all_levels_unique_ids_and_does_not_inherit_reviewed_approvals(): void
     {
         $rules = app(ResearchEsiRuleCatalog::class)->rules();
-        $this->assertCount(70, $rules);
-        $this->assertCount(70, array_unique(array_column($rules, 'rule_id')));
+        $this->assertCount(92, $rules);
+        $this->assertCount(92, array_unique(array_column($rules, 'rule_id')));
         $this->assertEqualsCanonicalizing([1, 2, 3, 4, 5], array_values(array_unique(array_column($rules, 'priority'))));
         $old = new ProvisionalEsiRuleCatalog(config('esi.provisional_rules'), config('esi.provisional_approvals'));
         $this->assertCount(18, array_filter($old->rules(), fn (array $r): bool => $r['approved']));
@@ -202,9 +229,9 @@ class ResearchEsiRuleLayerTest extends TestCase
 
         $states = ['abdominal_pain' => 'reported', 'severe_pain' => 'reported'];
         [$facts, $concepts] = $this->facts('Severe stomach pain.', $states, 65);
-        $this->assertSame(['RP-B-OLDER-ADULT-ABDOMEN'], $engine->evaluate($facts, [], $concepts)['matched_rule_ids']);
+        $this->assertSame(['RP-B-OLDER-ADULT-ABDOMEN', 'RP-B-SEVERE-PAIN-DISTRESS'], $engine->evaluate($facts, [], $concepts)['matched_rule_ids']);
         [$facts, $concepts] = $this->facts('Severe stomach pain.', $states, 64);
-        $this->assertNull($engine->evaluate($facts, [], $concepts)['priority']);
+        $this->assertSame(['RP-B-SEVERE-PAIN-DISTRESS'], $engine->evaluate($facts, [], $concepts)['matched_rule_ids']);
     }
 
     public function test_presentations_the_handbook_leaves_to_assessment_remain_needs_review(): void
@@ -212,10 +239,13 @@ class ResearchEsiRuleLayerTest extends TestCase
         $engine = app(ResearchEsiRuleLayer::class);
         foreach ([
             ['I bumped my head on a cabinet.', ['head_injury' => 'reported']],
-            ['I burned my hand on the stove; it is red.', ['burn_injury' => 'reported']],
             ['I am short of breath.', ['breathing_difficulty' => 'reported']],
-            ['My knee pain is 9 out of 10 and severe.', ['limb_pain' => 'reported', 'severe_pain' => 'reported']],
+            ['My knee pain is 9 out of 10 after a fall.', ['limb_injury' => 'reported', 'limb_pain' => 'reported', 'severe_pain' => 'reported']],
             ['There was blood in my stool.', ['bloody_stool' => 'reported']],
+            ['Red infected wound and fever; I have diabetes.', ['wound_redness' => 'reported', 'fever' => 'reported', 'diabetes_history' => 'reported']],
+            ['I hit my head and feel dizzy.', ['head_injury' => 'reported', 'dizziness' => 'reported']],
+            ['Chest pain when I cough, no fever.', ['chest_discomfort' => 'reported', 'cough' => 'reported', 'fever' => 'absent']],
+            ['Bruise and a new symptom with no concept.', ['bruising' => 'reported', 'unmapped_symptom' => 'reported']],
         ] as [$text, $states]) {
             [$facts, $concepts] = $this->facts($text, $states);
             $this->assertNull($engine->evaluate($facts, [], $concepts)['priority'], $text);
@@ -253,7 +283,7 @@ class ResearchEsiRuleLayerTest extends TestCase
             }
         }
         $cited = array_filter(app(ResearchEsiRuleCatalog::class)->rules(), fn (array $r): bool => $r['handbook_basis'] !== null);
-        $this->assertCount(39, $cited);
+        $this->assertCount(42, $cited);
     }
 
     public function test_edition_conflicts_follow_v4_and_engine_conflicts_follow_the_handbook(): void
@@ -267,7 +297,9 @@ class ResearchEsiRuleLayerTest extends TestCase
             'female severe one-sided lower pain' => ['Severe pain low on my left belly.', ['female_reported_sex' => 'reported', 'left_lower_abdominal_pain' => 'reported',
                 'severe_pain' => 'reported'], 2],
             'pregnant generalized cramping is not v4 level 2' => ['I am pregnant with crampy belly pain.', ['pregnancy' => 'reported', 'abdominal_pain' => 'reported'], null],
-            'male severe one-sided lower pain is left to review' => ['Severe pain low on my right belly.', ['right_lower_abdominal_pain' => 'reported', 'severe_pain' => 'reported'], null],
+            'severe pain outside a limb injury answers decision B' => ['Severe pain low on my right belly.', ['right_lower_abdominal_pain' => 'reported', 'severe_pain' => 'reported'], 2],
+            'chest pain with cough and fever is not v4 level 2' => ['Cough, fever, chest hurts, tired.', ['chest_discomfort' => 'reported', 'cough' => 'reported',
+                'fever' => 'reported', 'general_weakness' => 'reported'], 3],
             'cut on a limb is accounted by the cut profile' => ['Cut on my palm; edges open; bleeding stopped.', ['skin_cut' => 'reported', 'separated_wound_edges' => 'reported',
                 'bleeding_stopped' => 'reported', 'limb_injury' => 'reported'], 4],
             'lightheaded on standing is a form of dizziness' => ['Vomiting again and again, lightheaded when I stand.', ['repeated_vomiting' => 'reported',
