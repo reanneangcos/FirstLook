@@ -526,6 +526,61 @@ class ConversationalIntakeTest extends TestCase
         $this->assertDatabaseHas('chat_messages', ['role' => 'patient', 'content' => '34. Itchy arm']);
     }
 
+    public function test_added_detail_for_a_reported_narrative_field_is_kept_without_restarting_the_interview(): void
+    {
+        $visit = $this->startChat();
+        $nextGroup = 'Any known medical conditions, allergies, or regular medications?';
+        Http::fake(['api.openai.com/*' => Http::sequence()
+            ->push(self::intakeResponse([self::fact('main_complaint', 'headache'), self::fact('symptom_description', 'i hav headache and nauseating')],
+                ['age', 'reported_sex'], 'How old are you, in years? What sex do you report?'))
+            ->push(self::intakeResponse([self::fact('age', '23'), self::fact('reported_sex', 'male')],
+                ['onset', 'duration', 'worsening'], 'When did the headache start?'))
+            ->push(self::intakeResponse([self::fact('onset', '3 days ago'), self::fact('duration', '3 days ago'), self::fact('worsening', 'still getting worse until now')],
+                ['reported_severity', 'other_symptoms'], 'How strong is the headache?'))
+            ->push(self::intakeResponse([self::fact('symptom_description', 'its hard to see it feels weird to stand too, its strong'),
+                self::fact('other_symptoms', 'its hard to see it feels weird to stand too'), self::fact('reported_severity', 'its strong')],
+                ['known_conditions', 'maintenance_medications', 'allergies'], $nextGroup))
+            ->push(self::intakeResponse([self::fact('main_complaint', 'i have an headache'), self::fact('known_conditions', 'no conditions', 'absent')],
+                ['maintenance_medications', 'allergies'], 'Any regular medications or allergies?'))]);
+
+        $this->answer($visit, 'i hav headache and nauseating')->assertRedirect('/');
+        $this->answer($visit, '23 male')->assertRedirect('/');
+        $this->answer($visit, 'it startied 3 days ago and still getting worse until now')->assertRedirect('/');
+        $this->answer($visit, 'its hard to see it feels weird to stand too, its strong')->assertRedirect('/');
+
+        $visit->refresh();
+        $this->assertSame("i hav headache and nauseating\nits hard to see it feels weird to stand too, its strong", $visit->answers['symptom_description']);
+        $this->assertSame([], $visit->interview_state['clarify_fields']);
+        $this->assertSame(['known_conditions', 'maintenance_medications', 'allergies'], $visit->interview_state['pending_fields']);
+        $latest = $visit->messages()->reorder('id', 'desc')->first();
+        $this->assertSame(['intake', $nextGroup], [$latest->source, $latest->content]);
+
+        $this->answer($visit, 'i have an headache, no conditions')->assertRedirect('/');
+
+        $visit->refresh();
+        $this->assertSame('i have an headache', $visit->answers['main_complaint']);
+        $this->assertSame([], $visit->interview_state['clarify_fields']);
+        $this->assertSame(['maintenance_medications', 'allergies'], $visit->interview_state['pending_fields']);
+        Http::assertSentCount(5);
+    }
+
+    public function test_a_reported_narrative_answer_after_a_denial_still_requires_clarification(): void
+    {
+        $visit = $this->startChat();
+        $this->skipTo($visit, 'known_conditions');
+        Http::fake(['api.openai.com/*' => Http::sequence()
+            ->push(self::intakeResponse([self::fact('allergies', 'no allergies', 'absent')]))
+            ->push(self::intakeResponse([self::fact('allergies', 'allergic to penicillin')]))]);
+
+        $this->answer($visit, 'no allergies')->assertRedirect('/');
+        $this->answer($visit, 'allergic to penicillin')->assertRedirect('/');
+
+        $visit->refresh();
+        $this->assertArrayNotHasKey('allergies', $visit->answers);
+        $this->assertContains('allergies', $visit->interview_state['clarify_fields']);
+        $this->assertSame('unclear', $visit->interview_state['unresolved_answers']['allergies']['state']);
+    }
+
     public function test_duplicate_submission_is_rejected_before_a_second_provider_call(): void
     {
         $visit = $this->startChat();
