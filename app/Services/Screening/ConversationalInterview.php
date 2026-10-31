@@ -18,6 +18,10 @@ class ConversationalInterview
         ['tests_completed', 'tests_requested', 'medical_devices'],
     ];
 
+    /** Narrative fields where a later reported detail adds to an earlier reported answer instead of contradicting it. */
+    public const ACCUMULATING_FIELDS = ['main_complaint', 'symptom_description', 'other_symptoms', 'known_conditions',
+        'maintenance_medications', 'allergies', 'tests_completed', 'tests_requested', 'medical_devices'];
+
     public function __construct(private IntakeInterpreter $interpreter) {}
 
     public function initialize(PatientVisit $visit): void
@@ -92,6 +96,11 @@ class ConversationalInterview
                 $value = $fact['state'] === 'unknown' ? null : $fact['evidence'];
                 $needsDetail = $fact['needs_detail'] || $fact['state'] === 'unclear';
                 if (array_key_exists($field, $answers) && ! $fact['replaces_previous'] && ! $needsDetail) {
+                    if ($value !== null && $answers[$field] !== null && $this->addsDetail($field, $fact['state'], $state)) {
+                        $answers[$field] = $this->combineDetail((string) $answers[$field], $value);
+
+                        continue;
+                    }
                     if ($value !== null && $answers[$field] !== null && (string) $answers[$field] !== $value) {
                         $unresolved[$field] = ['state' => 'unclear', 'evidence' => $answers[$field]."\n".$value];
                         unset($answers[$field]);
@@ -118,6 +127,7 @@ class ConversationalInterview
                     $value = $unresolved[$field]['evidence']."\n".$value;
                 }
                 $answers[$field] = $value;
+                $state['answer_states'][$field] = $fact['state'];
                 unset($clarify[$field], $unresolved[$field]);
             }
             foreach ($state['pending_fields'] as $field) {
@@ -170,6 +180,24 @@ class ConversationalInterview
         }
 
         return [];
+    }
+
+    /** Only a reported detail added to an answer that was itself reported counts as more detail; a denial followed by a report still conflicts. */
+    private function addsDetail(string $field, string $factState, array $interviewState): bool
+    {
+        return in_array($field, self::ACCUMULATING_FIELDS, true) && $factState === 'reported'
+            && ($interviewState['answer_states'][$field] ?? null) === 'reported';
+    }
+
+    /** Keep the fuller wording when one reply restates the other, and both quotes when each adds something. */
+    private function combineDetail(string $previous, string $addition): string
+    {
+        $normalize = fn (string $text): string => preg_replace('/\s+/u', ' ', mb_strtolower(trim($text)));
+        if (str_contains($normalize($previous), $normalize($addition))) {
+            return $previous;
+        }
+
+        return str_contains($normalize($addition), $normalize($previous)) ? $addition : $previous."\n".$addition;
     }
 
     /** @param list<string> $fields */
