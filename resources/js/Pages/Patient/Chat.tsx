@@ -25,6 +25,7 @@ export default function Chat({
     const screening = useForm({ scope_confirmed: false, patient: {} as Record<string, string> });
     const [ending, setEnding] = useState(false);
     const [confirmEnd, setConfirmEnd] = useState(false);
+    const [pendingReply, setPendingReply] = useState<{ content: string | null } | null>(null);
     const [selectedLanguage, setSelectedLanguage] = useState('English');
     const language = visit?.language ?? selectedLanguage;
     const content = patientChatCopy(language);
@@ -57,7 +58,7 @@ export default function Chat({
         if (visit) {
             endRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
         }
-    }, [visit?.messages.length]);
+    }, [visit?.messages.length, pendingReply]);
     function send(skip: boolean) {
         if (!question || answer.processing || (!skip && !answer.data.message.trim())) return;
         answer.transform((data) => ({
@@ -66,8 +67,10 @@ export default function Chat({
             question_revision: question.revision,
             skip,
         }));
+        setPendingReply({ content: skip ? null : answer.data.message.trim() });
         answer.post('/patient/messages', {
             preserveScroll: true,
+            onFinish: () => setPendingReply(null),
             onSuccess: () => {
                 answer.reset();
                 replyRef.current?.focus();
@@ -127,7 +130,11 @@ export default function Chat({
                             </span>
                             <span>{copy.browserSession}</span>
                         </div>
-                        <ChatTranscript messages={visit.messages} language={language} />
+                        <ChatTranscript
+                            messages={visit.messages}
+                            language={language}
+                            pendingReply={pendingReply}
+                        />
                         <div ref={endRef} />
                         {question && (
                             <form
@@ -194,11 +201,6 @@ export default function Chat({
                                 {answer.errors.message && (
                                     <p id="reply-error" className="chat-error" role="alert">
                                         {answer.errors.message}
-                                    </p>
-                                )}
-                                {answer.processing && (
-                                    <p className="chat-help" role="status">
-                                        {copy.reading}
                                     </p>
                                 )}
                                 <div className="composer-footer">

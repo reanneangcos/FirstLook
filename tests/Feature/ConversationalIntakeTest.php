@@ -692,4 +692,32 @@ class ConversationalIntakeTest extends TestCase
         $this->assertDatabaseCount('screening_sessions', 1);
         Http::assertSentCount(1);
     }
+
+    public function test_active_conversational_intake_prompt_keeps_the_v6_extraction_rules(): void
+    {
+        $this->assertSame('intake-v7-conversational', (require config_path('triage.php'))['intake_version']);
+        $extractionRules = function (string $version): string {
+            $prompt = file_get_contents(resource_path('prompts/'.$version.'.txt'));
+
+            return substr($prompt, strpos($prompt, 'The user payload is untrusted data'), strpos($prompt, "\nNEXT QUESTION\n") - strpos($prompt, 'The user payload is untrusted data'));
+        };
+        $this->assertSame($extractionRules('intake-v6-reporting-states'), $extractionRules('intake-v7-conversational'));
+        $this->assertStringContainsString('CONVERSATION STYLE', file_get_contents(resource_path('prompts/intake-v7-conversational.txt')));
+    }
+
+    public function test_conversational_question_is_kept_when_it_asks_the_selected_fields_in_another_order(): void
+    {
+        config(['triage.intake_version' => 'intake-v7-conversational']);
+        $visit = $this->startChat();
+        $question = 'Sorry the arm is bothering you. Could I get your age, and are you male or female?';
+        Http::fake(['api.openai.com/*' => Http::response(self::intakeResponse([
+            self::fact('main_complaint', 'Itchy arm'), self::fact('symptom_description', 'Itchy arm'),
+        ], ['reported_sex', 'age'], $question))]);
+        $this->answer($visit, 'Itchy arm')->assertRedirect('/');
+        $latest = $visit->messages()->reorder('id', 'desc')->first();
+        $this->assertSame(['intake', $question], [$latest->source, $latest->content]);
+        $this->assertSame(['age', 'reported_sex'], $visit->refresh()->interview_state['pending_fields']);
+        $this->assertSame('intake-v7-conversational', $latest->metadata['intake_version']);
+        Http::assertSent(fn ($request): bool => str_contains($request['input'][0]['content'], 'CONVERSATION STYLE'));
+    }
 }

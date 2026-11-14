@@ -140,7 +140,8 @@ class ConversationalInterview
             $state['unresolved_answers'] = $unresolved;
             $fields = $this->nextFields($answers, $state['clarify_fields']);
             $proposed = $result['next_question'] ?? null;
-            $useProposed = $languageChange === null && $fields !== [] && $proposed !== null && $proposed['fields'] === $fields && trim($proposed['text']) !== '';
+            $useProposed = $languageChange === null && $fields !== [] && $proposed !== null
+                && $this->asksSameFields($proposed['fields'], $fields) && trim($proposed['text']) !== '';
             $question = $fields === [] ? PatientChatContent::text($language, 'conversation', 'ready')
                 : ($useProposed ? $proposed['text'] : $this->fallbackQuestion($fields, $language, $state['clarify_fields']));
             if ($languageChange !== null) {
@@ -180,6 +181,20 @@ class ConversationalInterview
         }
 
         return [];
+    }
+
+    /**
+     * The model's question can be used when it covers exactly the fields the interview selected, in any order.
+     *
+     * @param  list<string>  $proposedFields
+     * @param  list<string>  $selectedFields
+     */
+    private function asksSameFields(array $proposedFields, array $selectedFields): bool
+    {
+        sort($proposedFields);
+        sort($selectedFields);
+
+        return $proposedFields === $selectedFields;
     }
 
     /** Only a reported detail added to an answer that was itself reported counts as more detail; a denial followed by a report still conflicts. */
